@@ -7,8 +7,8 @@ from pipeline.config import DATABASE_URL, DATASET_DIR, ARCHIVE_DIR
 
 engine = sqlalchemy.create_engine(DATABASE_URL)
 
-def load_data_to_postgres(df: pd.DataFrame, table_name: str, schema: str):
-    """Nạp một DataFrame (đã có sẵn) vào bảng PostgreSQL được chỉ định."""
+def load_df_to_db(df: pd.DataFrame, table_name: str, schema: str):
+    """Nạp một DataFrame (đã có sẵn) vào bảng được chỉ định."""
     if df.empty:
         print(f"Không có dữ liệu (DataFrame rỗng) để nạp vào {schema}.{table_name}.")
         return
@@ -41,8 +41,8 @@ def load_csv_to_staging_and_cleanup(file_path: str, schema: str = 'staging', tab
         if df.empty:
             print(f"File {file_path} rỗng, không có gì để nạp. Bỏ qua.")
             # Xóa file rỗng nếu muốn
-            # os.remove(file_path)
-            # print(f"-> Đã xóa file rỗng: {file_path}")
+            os.remove(file_path)
+            print(f"-> Đã xóa file rỗng: {file_path}")
             return
     except FileNotFoundError:
         print(f"❌ LỖI: Không tìm thấy file {file_path}.")
