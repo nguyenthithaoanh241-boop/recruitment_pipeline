@@ -1,0 +1,14 @@
+#Dùng để thao tác với dữ liệu (DataFrame)
+pandas
+
+# Dùng để kết nối và tương tác với database
+sqlalchemy
+
+# Driver để Python kết nối với PostgreSQL
+psycopg2-binary
+
+# Đọc file .env
+python-dotenv
+
+# Driver chung cho SQL Server
+pyodbc
