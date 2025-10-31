@@ -1,14 +1,8 @@
-# 1. File mật khẩu và cấu hình 
 .env
-# 2. Thư mục môi trường ảo Python
 venv/
-# 3. Thư mục cache của Python
 __pycache__/
 *.pyc
-# 4. Các file log, chúng ta không cần lưu lịch sử của log
 *.log
-# 5. Các file tạm của hệ điều hành (nếu dùng MacOS hoặc Windows)
 .DS_Store
 Thumbs.db
-# Thư mục lưu file đã xử lý
 dataset/archive/
