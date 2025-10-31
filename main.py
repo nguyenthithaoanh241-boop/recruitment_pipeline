@@ -3,21 +3,15 @@
 import sys
 import os
 import random
-# import time # <- Không cần nữa
-# import glob # <- Không cần nữa
-# import pandas as pd # <- Không cần nữa
 
 # Thêm đường dẫn dự án vào sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # --- Import các thành phần của pipeline ---
-# from pipeline.config import DATASET_DIR, ARCHIVE_DIR # <- Không cần ở file này nữa
 from pipeline.db_setup import setup_database_tables
-# from pipeline.loader import load_data_to_postgres # <- Không còn dùng hàm này ở đây
-from pipeline.transformer import transform_data # <- Giữ lại cho Bước 3
+from pipeline.transformer import transform_data 
 
 # --- Import các CLASS Scraper ---
-# (Giả sử file CareerViet.py cũng đã được sửa)
 from scrapers.TopCV import TopCVScraper
 from scrapers.Careerlink import CareerLinkScraper
 
@@ -75,9 +69,6 @@ def run_full_pipeline():
         print(f"🤖 Lần này sẽ chạy ngẫu nhiên scraper: {scraper_name} (Category: {category})")
         
         # 4. Chạy phương thức .run() của đối tượng đã được chọn
-        # !!! QUAN TRỌNG:
-        # Hàm .run() này bây giờ đã bao gồm cả việc cào,
-        # lưu CSV, nạp vào DB và xóa file CSV.
         chosen_scraper.run() 
         
     except Exception as e:
@@ -85,7 +76,6 @@ def run_full_pipeline():
 
     # Bước 3: Transform dữ liệu và nạp vào Production
     print("\n----- BƯỚC 3: TRANSFORM DỮ LIỆU SANG PRODUCTION -----")
-    # (Bước này sẽ là bước tiếp theo chúng ta làm)
     # transform_data()
     
     print("\n🎉 PIPELINE HOÀN TẤT! 🎉")

@@ -85,7 +85,6 @@ def _setup_sqlserver(connection):
     print("🔧 Bắt đầu thiết lập cấu trúc cho SQL Server...")
 
     # --- Tạo Schemas (Cú pháp SQL Server) ---
-    # Cú pháp này an toàn, chỉ tạo nếu chưa tồn tại
     connection.execute(text("""
     IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'staging')
     BEGIN
@@ -105,8 +104,8 @@ def _setup_sqlserver(connection):
     IF OBJECT_ID('staging.raw_jobs', 'U') IS NULL
     BEGIN
         CREATE TABLE staging.raw_jobs (
-            id INT IDENTITY(1,1) PRIMARY KEY, -- Thay SERIAL
-            title NVARCHAR(MAX), -- Thay TEXT
+            id INT IDENTITY(1,1) PRIMARY KEY, 
+            title NVARCHAR(MAX), 
             specialization NVARCHAR(MAX),
             work_location NVARCHAR(MAX),
             experience NVARCHAR(MAX),
@@ -124,13 +123,13 @@ def _setup_sqlserver(connection):
             job_description NVARCHAR(MAX),
             benefits NVARCHAR(MAX),
             deadline NVARCHAR(MAX),
-            link NVARCHAR(450) UNIQUE, -- Giới hạn cho UNIQUE, thay TEXT
+            link NVARCHAR(450) UNIQUE, 
             gender NVARCHAR(MAX),
             skills NVARCHAR(MAX),
             post_date NVARCHAR(MAX), 
             age NVARCHAR(MAX),
             source_web NVARCHAR(MAX),
-            scraped_at DATETIMEOFFSET, -- Thay TIMESTAMP WITH TIME ZONE
+            scraped_at DATETIMEOFFSET, 
             transform_status SMALLINT DEFAULT 0 NOT NULL, 
             loaded_at DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET() -- Thay NOW()
         );
@@ -138,7 +137,8 @@ def _setup_sqlserver(connection):
     """))
     print("     -> Bảng 'staging.raw_jobs' đã sẵn sàng.")
 
-    # --- Tạo bảng Production (Cú pháp SQL Server) ---
+'''
+    # --- Tạo bảng Production (Cú pháp SQL Server) ---( chưa tạo vội)
     connection.execute(text("""
     IF OBJECT_ID('production.clean_jobs', 'U') IS NULL
     BEGIN
@@ -163,7 +163,7 @@ def _setup_sqlserver(connection):
     END
     """))
     print("     -> Bảng 'production.clean_jobs' đã sẵn sàng.")
-
+'''
 
 def setup_database_tables():
     """
