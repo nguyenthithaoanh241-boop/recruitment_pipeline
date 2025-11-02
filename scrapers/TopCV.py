@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import time, random, csv, os, datetime, sys, re
-import logging # <--- THÊM MỚI: Thư viện logging tiêu chuẩn
+import logging 
 
 # <--- THÊM MỚI: Import hàm loader từ file script/loader.py
 # (Giả sử file script/ nằm cùng cấp với thư mục scrapers/ trong project_root)
@@ -45,7 +45,7 @@ class TopCVScraper:
             "work_time", "level", "work_form", "company_name", "company_link",
             "company_size", "recruit_quantity", "education",
             "requirement", "job_description", "benefits", "deadline", "link", "source_web",
-            "scraped_at", "transform_status" # <--- 2 cột mới
+            "scraped_at"
         ]
         
         # <--- THÊM MỚI: Thiết lập logger
@@ -84,7 +84,7 @@ class TopCVScraper:
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--headless=new") # <--- Bỏ comment nếu chạy trên server
+        #chrome_options.add_argument("--headless=new") # <--- Bỏ comment nếu chạy trên server
         return webdriver.Chrome(options=chrome_options)
 
     
@@ -162,7 +162,8 @@ class TopCVScraper:
         new_jobs_to_crawl = []
         
         for page in range(self.START_PAGE, max_page_to_crawl + 1):
-            url = f"https://www.topcv.vn/tim-viec-lam-it?page={page}"
+            url = f"https://www.topcv.vn/tim-viec-lam-cong-nghe-thong-tin-cr257?sort=newp&type_keyword={page}&category_family=r257"
+            
             self.logger.info(f"🔎 Đang quét trang {page}: {url}") # <--- SỬA
             try:
                 driver.get(url)
@@ -236,7 +237,7 @@ class TopCVScraper:
                         title, specialization, work_location, experience, salary, work_time, level, work_form,
                         company_name, company_link, company_size, recruit_quantity, education, requirement, job_description, benefits,
                         deadline_raw.replace('Hạn nộp hồ sơ: ', ''), link, self.SOURCE_WEB,
-                        scraped_timestamp, 0 # <--- 2 cột mới (thời gian cào, trạng thái transform = 0)
+                        scraped_timestamp # <--- 2 cột mới (thời gian cào, trạng thái transform = 0)
                     ]
                     
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
