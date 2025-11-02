@@ -54,8 +54,8 @@ def run_full_pipeline():
         # 2. Tạo danh sách các đối tượng scraper cần chạy
         scrapers_to_choose_from = [
             topcv_scraper,
-            careerlink_hardware,
-            careerlink_software,
+            #careerlink_hardware,
+            #careerlink_software,
             #careerviet_hardware,
             #careerviet_software
         ]
