@@ -22,7 +22,7 @@ def _setup_postgresql(connection):
     # --- Tạo bảng Staging (Cú pháp PostgreSQL) ---
     # Sử dụng các cột Tiếng Việt từ CSV_HEADER
     connection.execute(text("""
-    CREATE TABLE IF NOT EXISTS staging.raw_jobs_ta (
+    CREATE TABLE IF NOT EXISTS staging.raw_jobs(
         id SERIAL PRIMARY KEY,
         CongViec TEXT,
         ChuyenMon TEXT,
@@ -43,12 +43,7 @@ def _setup_postgresql(connection):
         HanNopHoSo TEXT,
         LinkBaiTuyenDung TEXT,
         Nguon TEXT,
-        NgayCaoDuLieu DATE,
-        
-        -- Cột metadata (để theo dõi)
-        NgayThemVaoHeThong TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        -- Thêm UNIQUE constraint để tránh trùng lặp job
-        CONSTRAINT unique_link_pg UNIQUE (LinkBaiTuyenDung)
+        "NgayCaoDuLieu" DATE DEFAULT CURRENT_DATE,
     );
     """))
     print("     -> Bảng 'staging.raw_jobs_ta' (Tiếng Việt) đã sẵn sàng.")
@@ -86,14 +81,9 @@ def _setup_sqlserver(connection):
             MoTaCongViec NVARCHAR(MAX),
             QuyenLoi NVARCHAR(MAX),
             HanNopHoSo NVARCHAR(MAX),
-            LinkBaiTuyenDung NVARCHAR(450), -- 450 là giới hạn để dùng UNIQUE
+            LinkBaiTuyenDung NVARCHAR(450), 
             Nguon NVARCHAR(255),
-            NgayCaoDuLieu DATE,
-            
-            -- Cột metadata (để theo dõi)
-            NgayThemVaoHeThong DATETIME DEFAULT GETDATE(),
-            -- Thêm UNIQUE constraint để tránh trùng lặp job
-            CONSTRAINT unique_link_sql UNIQUE (LinkBaiTuyenDung)
+            NgayCaoDuLieu DATE DEFAULT CAST(GETDATE() AS DATE),
         );
     END
     """))

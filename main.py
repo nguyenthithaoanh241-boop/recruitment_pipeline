@@ -7,86 +7,79 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # --- Import các thành phần của pipeline ---
 from pipeline.transformer import transform_data 
 from pipeline.config import DATASET_DIR, DB_TYPE 
+from pipeline.db_setup import setup_database_tables 
+from pipeline.loader import load_all_csv_to_staging_and_cleanup 
 
 # --- Import các CLASS Scraper ---
 from scrapers.TopCV import TopCVScraper
-from scrapers.Careerlink import CareerLinkScraper
+from scrapers.Careerlink import CareerLinkScraper 
 
-# --- Import hàm LOADER mới ---
-from pipeline.loader import load_csv_to_staging_and_cleanup
 
-# ... (Hàm run_scrapers(scrapers) giữ nguyên, không cần sửa) ...
-def run_scrapers(scrapers: list) -> list:
-    all_saved_files = []
+def run_scrapers(scrapers: list): 
+    """Chạy tất cả các scraper. Không cần thu thập tên file trả về."""
     for scraper in scrapers:
         try:
             scraper_name = scraper.__class__.__name__
             category = getattr(scraper, 'category_name', 'Default')
             print(f"\n🤖 Bắt đầu chạy: {scraper_name} (Category: {category})")
+            
+            # Hàm .run() vẫn chạy và trả về tên file/None, nhưng ta BỎ QUA kết quả này.
             saved_file = scraper.run() 
+            
             if saved_file:
-                print(f"-> Đã lưu file: {saved_file}")
-                all_saved_files.append(saved_file)
+                print(f"-> Đã tạo file: {saved_file}")
             else:
-                print(f"-> {scraper_name} không trả về file nào.")
+                print(f"-> {scraper_name} không tạo file mới.")
         except Exception as e:
             print(f"❌ Lỗi nghiêm trọng khi chạy {scraper.__class__.__name__}: {e}")
-    return all_saved_files
+    return 
 
 
 def run_full_pipeline():
     print("🚀 BẮT ĐẦU CHẠY PIPELINE TUYỂN DỤNG 🚀")
+    print("\n----- BƯỚC 0: KIỂM TRA VÀ THIẾT LẬP DATABASE -----")
+    setup_database_tables() 
     
-    # --- BƯỚC 1: CRAWL (Giữ nguyên) ---
+
     print("\n----- BƯỚC 1: CRAWL DỮ LIỆU (LƯU RA CSV) -----")
     scrapers_to_run = [
         TopCVScraper(),
-        CareerLinkScraper(
-            category_name="PhanCungMang",
-            base_url="https://www.careerlink.vn/viec-lam/cntt-phan-cung-mang/130"
-        ),
-        CareerLinkScraper(
-            category_name="PhanMem",
-            base_url="https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"
-        ),
+        # CareerLinkScraper(...),
     ]
-    saved_files = run_scrapers(scrapers_to_run)
+ 
+    run_scrapers(scrapers_to_run)
     
-    if not saved_files:
-        print("\nHoàn tất: Không có file nào được cào. Dừng pipeline.")
-        return
-    print(f"\n-> Hoàn tất BƯỚC 1: {len(saved_files)} file đã được lưu vào {DATASET_DIR}.")
+    print("\n-> Hoàn tất BƯỚC 1: Quá trình cào đã xong, dữ liệu nằm trong thư mục.")
 
-    # --- BƯỚC 2: LOAD DỮ LIỆU (Cập nhật) ---
-    print("\n----- BƯỚC 2: LOAD DỮ LIỆU TỪ CSV VÀO DATABASE -----")
+    # --- BƯỚC 2: LOAD DỮ LIỆU (SỬ DỤNG HÀM QUÉT TOÀN BỘ) ---
+    print("\n----- BƯỚC 2: LOAD TẤT CẢ CSV CHƯA XỬ LÝ VÀO DATABASE -----")
 
-    # 👇 TỰ ĐỘNG CHỌN SCHEMA DỰA TRÊN CẤU HÌNH
     target_schema = None
+    target_table = None
+    
+    # Xác định Schema và Table Name dựa trên DB_TYPE
     if DB_TYPE == 'sqlserver':
         target_schema = 'dbo'
+        target_table = 'Stg_Jobs' 
     elif DB_TYPE == 'postgresql':
-        target_schema = 'public'
+        target_schema = 'staging'
+        target_table = 'raw_jobs_ta'
     else:
         print(f"❌ LỖI: Không nhận diện được DB_TYPE '{DB_TYPE}' để chọn schema.")
         print("Dừng pipeline.")
-        return # Dừng lại nếu không biết nạp vào đâu
+        return 
 
-    print(f"-> Chế độ: {DB_TYPE}. Dữ liệu sẽ được nạp vào schema: '{target_schema}'")
-
-    for file_name in saved_files:
-        full_file_path = os.path.join(DATASET_DIR, file_name)
-        
-        print("-" * 20)
-        load_csv_to_staging_and_cleanup(
-            file_path=full_file_path,
-            schema=target_schema,       
-            table_name='raw_jobs_ta'    
-        )
+    # GỌI HÀM LOAD MỚI MỘT LẦN DUY NHẤT
+    total_loaded = load_all_csv_to_staging_and_cleanup(
+        csv_output_dir=DATASET_DIR, # Truyền thư mục đầu ra
+        schema=target_schema,
+        table_name=target_table 
+    )
     
-    print("\n-> Hoàn tất BƯỚC 2: Dữ liệu đã được nạp và file CSV đã được dọn dẹp.")
+    print(f"\n-> Hoàn tất BƯỚC 2: Đã nạp và dọn dẹp {total_loaded} dòng dữ liệu.")
 
     # --- BƯỚC 3: TRANSFORM (Giữ nguyên) ---
-    print("\n----- BƯỚC 3: TRANSFORM DỮ LIỆU SANG PRODUCTION -----")
+    #print("\n----- BƯỚC 3: TRANSFORM DỮ LIỆU SANG PRODUCTION -----")
     # transform_data()
     
     print("\n🎉 PIPELINE HOÀN TẤT! 🎉")

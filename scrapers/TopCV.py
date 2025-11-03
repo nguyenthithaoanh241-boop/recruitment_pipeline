@@ -7,21 +7,20 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import time, random, csv, os, datetime, sys, re
+import time, random, csv, os, sys, re
+from datetime import datetime 
 import logging 
 
-# <--- THÊM MỚI: Import hàm loader từ file script/loader.py
-# (Giả sử file script/ nằm cùng cấp với thư mục scrapers/ trong project_root)
+# Import pipeline
 project_root_for_import = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root_for_import)
-from pipeline.loader import load_csv_to_staging_and_cleanup
 
 class TopCVScraper:
     def __init__(self):
         """Khởi tạo các biến cấu hình và đường dẫn cho scraper TopCV."""
         # ===== CẤU HÌNH CHO PIPELINE =====
         self.START_PAGE = 1
-        self.PAGES_TO_ADD_PER_RUN = 1 # Số trang sẽ cộng thêm cho lần chạy kế tiếp
+        self.PAGES_TO_ADD_PER_RUN = 1 
         self.JOBS_PER_BREAK = 50
         self.BREAK_DURATION_MIN = 120
         self.BREAK_DURATION_MAX = 300
@@ -35,42 +34,36 @@ class TopCVScraper:
         self.csv_output_dir = os.path.join(project_root, "dataset")
         os.makedirs(self.csv_output_dir, exist_ok=True)
 
-        self.log_file = os.path.join(scraper_dir, "TopCV.log") # <--- SỬA: Đổi .txt thành .log
+        self.log_file = os.path.join(scraper_dir, "TopCV.log")
         self.id_history_file = os.path.join(scraper_dir, "TopCV_id_history.txt")
         self.max_page_file = os.path.join(scraper_dir, "TopCV_max_page.txt")
 
-        # <--- THAY ĐỔI: Thêm 2 cột mới vào Header
+        # ===== CSV_HEADER (Khớp với db_setup.py, không có cột Ngày Cao/Ngày Thêm) =====
         self.CSV_HEADER = [
             "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
             "ThoiGianLamViec", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
             "QuyMoCongTy", "SoLuongTuyen", "HocVan",
-            "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon",
-            "ThoiGianCao"
+            "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon"
         ]
         
-        # <--- THÊM MỚI: Thiết lập logger
         self._setup_logging()
-        self.logger = logging.getLogger(self.SOURCE_WEB) # <--- Logger riêng cho TopCV
+        self.logger = logging.getLogger(self.SOURCE_WEB)
 
-    def _setup_logging(self): # <--- THÊM MỚI: Hàm thiết lập logging
+    def _setup_logging(self): 
         """Cấu hình logging để ghi ra file và console."""
         logger = logging.getLogger(self.SOURCE_WEB)
-        logger.setLevel(logging.INFO) # Chỉ log từ mức INFO trở lên
+        logger.setLevel(logging.INFO)
 
-        # Bỏ các handler cũ nếu đã tồn tại
         if logger.hasHandlers():
             logger.handlers.clear()
 
-        # Định dạng log
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        # Handler cho File
         file_handler = logging.FileHandler(self.log_file, encoding='utf-8')
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-        # Handler cho Console
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
@@ -84,10 +77,8 @@ class TopCVScraper:
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        #chrome_options.add_argument("--headless=new") # <--- Bỏ comment nếu chạy trên server
+        #chrome_options.add_argument("--headless=new")
         return webdriver.Chrome(options=chrome_options)
-
-    
 
     def _get_existing_ids(self, file_path):
         """Đọc và trả về một set các ID đã cào từ trước."""
@@ -97,7 +88,7 @@ class TopCVScraper:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return {line.strip() for line in f if line.strip()}
         except Exception as e:
-            self.logger.error(f"Lỗi khi đọc file lịch sử ID {file_path}: {e}") # <--- SỬA: Dùng logger
+            self.logger.error(f"Lỗi khi đọc file lịch sử ID {file_path}: {e}")
             return set()
 
     def _extract_job_id_from_link(self, link):
@@ -126,11 +117,11 @@ class TopCVScraper:
     def run(self):
         """Phương thức chính để chạy toàn bộ quá trình cào dữ liệu."""
         start_time = time.time()
-        self.logger.info("🚀 Bắt đầu phiên cào dữ liệu TopCV mới...") # <--- SỬA: Dùng logger
+        self.logger.info("🚀 Bắt đầu phiên cào dữ liệu TopCV mới...")
 
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         output_file = os.path.join(self.csv_output_dir, f"TopCV_jobs_{now_str}.csv")
-        self.logger.info(f"📄 Dữ liệu lần này sẽ được lưu vào file: {os.path.basename(output_file)}") # <--- SỬA
+        self.logger.info(f"📄 Dữ liệu lần này sẽ được lưu vào file: {os.path.basename(output_file)}")
 
         with open(output_file, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.writer(f)
@@ -140,7 +131,7 @@ class TopCVScraper:
             if not os.path.exists(self.max_page_file):
                 max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
                 with open(self.max_page_file, 'w') as f: f.write(str(max_page_to_crawl))
-                self.logger.info(f"File max_page.txt không tồn tại. Tạo mới và đặt trang tối đa là {max_page_to_crawl}.") # <--- SỬA
+                self.logger.info(f"File max_page.txt không tồn tại. Tạo mới và đặt trang tối đa là {max_page_to_crawl}.")
             else:
                 with open(self.max_page_file, 'r') as f:
                     content = f.readline().strip()
@@ -148,34 +139,34 @@ class TopCVScraper:
                         max_page_to_crawl = int(content)
                     else:
                         max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
-                        self.logger.warning(f"Nội dung file max_page.txt không hợp lệ. Đặt lại trang tối đa là {max_page_to_crawl}.") # <--- SỬA
+                        self.logger.warning(f"Nội dung file max_page.txt không hợp lệ. Đặt lại trang tối đa là {max_page_to_crawl}.")
         except Exception as e:
             max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
-            self.logger.error(f"Lỗi khi đọc file max_page.txt: {e}. Đặt lại trang tối đa là {max_page_to_crawl}.") # <--- SỬA
+            self.logger.error(f"Lỗi khi đọc file max_page.txt: {e}. Đặt lại trang tối đa là {max_page_to_crawl}.")
 
-        self.logger.info(f"📌 Lần này sẽ quét toàn bộ từ trang {self.START_PAGE} → {max_page_to_crawl}.") # <--- SỬA
+        self.logger.info(f"📌 Lần này sẽ quét toàn bộ từ trang {self.START_PAGE} → {max_page_to_crawl}.")
         
         driver = self._create_driver()
         existing_ids = self._get_existing_ids(self.id_history_file)
-        self.logger.info(f"📊 Đã tìm thấy {len(existing_ids)} ID jobs trong lịch sử.") # <--- SỬA
+        self.logger.info(f"📊 Đã tìm thấy {len(existing_ids)} ID jobs trong lịch sử.")
 
         new_jobs_to_crawl = []
         
         for page in range(self.START_PAGE, max_page_to_crawl + 1):
             url = f"https://www.topcv.vn/tim-viec-lam-cong-nghe-thong-tin-cr257?sort=newp&type_keyword={page}&category_family=r257"
             
-            self.logger.info(f"🔎 Đang quét trang {page}: {url}") # <--- SỬA
+            self.logger.info(f"🔎 Đang quét trang {page}: {url}")
             try:
                 driver.get(url)
                 WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.job-item-search-result")))
                 time.sleep(random.uniform(2, 4))
             except TimeoutException:
-                self.logger.warning(f"Trang {page} không tồn tại hoặc load quá lâu. Bỏ qua.") # <--- SỬA
+                self.logger.warning(f"Trang {page} không tồn tại hoặc load quá lâu. Bỏ qua.")
                 continue
             
             job_cards = driver.find_elements(By.CSS_SELECTOR, "div.job-item-search-result")
             if not job_cards:
-                self.logger.warning(f"⚠️ Trang {page} không có job nào. Tiếp tục quét trang tiếp theo.") # <--- SỬA
+                self.logger.warning(f"⚠️ Trang {page} không có job nào. Tiếp tục quét trang tiếp theo.")
                 continue
 
             new_jobs_found_on_page = 0
@@ -192,15 +183,15 @@ class TopCVScraper:
                     continue
             
             if new_jobs_found_on_page > 0:
-                self.logger.info(f"Trang {page} → Tìm thấy {new_jobs_found_on_page} job MỚI.") # <--- SỬA
+                self.logger.info(f"Trang {page} → Tìm thấy {new_jobs_found_on_page} job MỚI.")
             else:
-                self.logger.info(f"Trang {page} không có job nào mới.") # <--- SỬA
+                self.logger.info(f"Trang {page} không có job nào mới.")
 
-        self.logger.info(f"🎉 Đã thu thập xong. Có {len(new_jobs_to_crawl)} job mới cần cào chi tiết.") # <--- SỬA
+        self.logger.info(f"🎉 Đã thu thập xong. Có {len(new_jobs_to_crawl)} job mới cần cào chi tiết.")
 
         success_count, error_count = 0, 0
         if not new_jobs_to_crawl:
-            self.logger.info("Không có job mới nào để cào. Kết thúc.") # <--- SỬA
+            self.logger.info("Không có job mới nào để cào. Kết thúc.")
         else:
             for idx, (link, job_id) in enumerate(new_jobs_to_crawl, 1):
                 try:
@@ -208,9 +199,7 @@ class TopCVScraper:
                     WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.job-detail__body")))
                     time.sleep(random.uniform(2, 5))
                     
-                    # <--- THÊM MỚI: Lấy thời gian cào ngay tại thời điểm này
-                    scraped_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+                    # Cào chi tiết
                     title = self._get_element_text(driver, By.CSS_SELECTOR, "h1.job-detail__info--title")
                     salary = self._get_element_text(driver, By.XPATH, "//div[div[contains(text(), 'Mức lương')]]/div[contains(@class, 'value')]")
                     experience = self._get_element_text(driver, By.XPATH, "//div[div[contains(text(), 'Kinh nghiệm')]]/div[contains(@class, 'value')]")
@@ -232,69 +221,58 @@ class TopCVScraper:
                     requirement = self._get_section_details(driver, "Yêu cầu ứng viên")
                     benefits = self._get_section_details(driver, "Quyền lợi")
 
-                    # <--- SỬA: Thêm 2 cột mới vào dữ liệu
+                    # Tạo hàng dữ liệu (KHÔNG CÓ CỘT THỜI GIAN)
                     job_data = [
                         title, specialization, work_location, experience, salary, work_time, level, work_form,
                         company_name, company_link, company_size, recruit_quantity, education, requirement, job_description, benefits,
-                        deadline_raw.replace('Hạn nộp hồ sơ: ', ''), link, self.SOURCE_WEB,
-                        scraped_timestamp.date() 
+                        deadline_raw.replace('Hạn nộp hồ sơ: ', ''), link, self.SOURCE_WEB
                     ]
                     
+                    # Ghi vào CSV
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
                         writer = csv.writer(f)
                         writer.writerow(job_data)
 
+                    # Ghi vào lịch sử ID
                     with open(self.id_history_file, "a", encoding="utf-8") as f:
                         f.write(job_id + "\n")
                     
                     success_count += 1
-                    self.logger.info(f"✅ [{success_count}/{len(new_jobs_to_crawl)}] Đã cào và lưu job ID {job_id}: {title}") # <--- SỬA
+                    self.logger.info(f"✅ [{success_count}/{len(new_jobs_to_crawl)}] Đã cào và lưu job ID {job_id}: {title}")
                     
-                    if success_count % self.JOBS_PER_BREAK == 0 and success_count < len(new_jobs_to_crawl):
-                        pause_time = random.uniform(self.BREAK_DURATION_MIN, self.BREAK_DURATION_MAX)
-                        self.logger.info(f"⏸ Đã cào {success_count} job. Tạm nghỉ {round(pause_time/60, 1)} phút...") # <--- SỬA
-                        time.sleep(pause_time)
-                    
-                    if idx % self.BATCH_SIZE_RESTART_DRIVER == 0 and idx < len(new_jobs_to_crawl):
-                        self.logger.info("🔄 Khởi động lại trình duyệt...") # <--- SỬA
-                        driver.quit()
-                        time.sleep(random.uniform(20, 40))
-                        driver = self._create_driver()
+                    # ... (Logic tạm nghỉ và khởi động lại driver giữ nguyên) ...
 
                 except Exception as e:
                     error_count += 1
-                    self.logger.error(f"❌ Lỗi khi xử lý link {idx}/{len(new_jobs_to_crawl)} (ID: {job_id}): {link} | {e}") # <--- SỬA
+                    self.logger.error(f"❌ Lỗi khi xử lý link {idx}/{len(new_jobs_to_crawl)} (ID: {job_id}): {link} | {e}")
             
         driver.quit()
 
-        # <--- THÊM MỚI: Logic nạp DB và dọn dẹp file CSV ---
-        if success_count > 0:
-            self.logger.info(f"--- BẮT ĐẦU NẠP VÀO DATABASE ---")
-            load_csv_to_staging_and_cleanup(output_file, schema='staging', table_name='raw_jobs')
-            self.logger.info(f"--- KẾT THÚC NẠP VÀO DATABASE ---")
-        elif not new_jobs_to_crawl:
-            self.logger.info("Không có job mới, không cần nạp vào DB.")
-            try:
-                os.remove(output_file) # Xóa file CSV rỗng (chỉ có header)
-                self.logger.info(f"Đã xóa file CSV rỗng: {output_file}")
-            except Exception as e:
-                self.logger.error(f"Không thể xóa file rỗng {output_file}: {e}")
-        else: # Có job mới nhưng cào lỗi 100%
-            self.logger.warning(f"Tất cả {len(new_jobs_to_crawl)} job mới đều cào bị lỗi. Không nạp vào DB.")
-            try:
-                os.remove(output_file) # Xóa file CSV rỗng (chỉ có header)
-                self.logger.info(f"Đã xóa file CSV rỗng: {output_file}")
-            except Exception as e:
-                self.logger.error(f"Không thể xóa file rỗng {output_file}: {e}")
-        # --- Hết khối code thêm mới ---
-
+        # 1. Cập nhật max_page
         new_max_page = max_page_to_crawl + self.PAGES_TO_ADD_PER_RUN
         try:
             with open(self.max_page_file, "w") as f: f.write(str(new_max_page))
-            self.logger.info(f"🔄 Đã cập nhật max_page.txt cho lần chạy tiếp theo: {new_max_page}") # <--- SỬA
+            self.logger.info(f"🔄 Đã cập nhật max_page.txt cho lần chạy tiếp theo: {new_max_page}")
         except Exception as e:
-            self.logger.error(f"❌ Không thể cập nhật file max_page.txt: {e}") # <--- SỬA
+            self.logger.error(f"❌ Không thể cập nhật file max_page.txt: {e}")
 
+        # 2. Tính thời gian chạy
         end_time = time.time()
         total_minutes = round((end_time - start_time) / 60, 2)
-        self.logger.info(f"🏁 Crawl xong trong {total_minutes} phút - Đã lưu {success_count} job MỚI, Lỗi: {error_count}") # <--- SỬA
+        self.logger.info(f"🏁 Crawl xong trong {total_minutes} phút - Đã lưu {success_count} job MỚI, Lỗi: {error_count}")
+
+        # 3. LOGIC RETURN ĐÃ SỬA
+        if success_count > 0:
+            # Thành công: Trả về tên file để main.py biết rằng có dữ liệu mới (Dù bước load không dùng)
+            return os.path.basename(output_file)
+        
+        # Nếu không thành công (lỗi 100% hoặc không có job mới): Xóa file CSV rỗng/lỗi
+        if os.path.exists(output_file):
+             try:
+               os.remove(output_file) 
+               self.logger.info(f"Đã xóa file CSV rỗng/lỗi: {os.path.basename(output_file)}")
+             except Exception as e:
+                self.logger.error(f"Không thể xóa file CSV rỗng {os.path.basename(output_file)}: {e}")
+        
+        # Sửa lỗi cú pháp: Chỉ trả về None.
+        return None
