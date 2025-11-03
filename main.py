@@ -41,15 +41,58 @@ def run_full_pipeline():
     setup_database_tables() 
     
 
-    print("\n----- BƯỚC 1: CRAWL DỮ LIỆU (LƯU RA CSV) -----")
-    scrapers_to_run = [
-        TopCVScraper(),
-        # CareerLinkScraper(...),
-    ]
- 
-    run_scrapers(scrapers_to_run)
-    
-    print("\n-> Hoàn tất BƯỚC 1: Quá trình cào đã xong, dữ liệu nằm trong thư mục.")
+    print("\n----- BƯỚC 1: CRAWL DỮ LIỆU THEO THỨ TỰ -----")
+    try:
+        # 1. Khởi tạo các "đối tượng" scraper
+        print("Khởi tạo các scraper...")
+        topcv_scraper = TopCVScraper()
+        
+        careerlink_hardware = CareerLinkScraper(
+            category_name="PhanCungMang",
+            base_url="https://www.careerlink.vn/viec-lam/cntt-phan-cung-mang/130"
+        )
+        
+        careerlink_software = CareerLinkScraper(
+            category_name="PhanMem",
+            base_url="https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"
+        )
+        
+        # 2. Chạy TopCV TRƯỚC
+        print("\n🤖 Bắt đầu chạy: TopCV")
+        try:
+            saved_file = topcv_scraper.run()
+            if saved_file:
+                print(f"-> Đã tạo file: {saved_file}")
+            else:
+                print("-> TopCV không tạo file mới.")
+        except Exception as e:
+            print(f"❌ Lỗi khi chạy TopCV: {e}")
+
+        # 3. Chạy CareerLink SAU
+        print("\n🤖 Bắt đầu chạy: CareerLink (Phần Cứng)")
+        try:
+            saved_file = careerlink_hardware.run()
+            if saved_file:
+                print(f"-> Đã tạo file: {saved_file}")
+            else:
+                print("-> CareerLink (Phần Cứng) không tạo file mới.")
+        except Exception as e:
+            print(f"❌ Lỗi khi chạy CareerLink (Phần Cứng): {e}")
+
+        print("\n🤖 Bắt đầu chạy: CareerLink (Phần Mềm)")
+        try:
+            saved_file = careerlink_software.run()
+            if saved_file:
+                print(f"-> Đã tạo file: {saved_file}")
+            else:
+                print("-> CareerLink (Phần Mềm) không tạo file mới.")
+        except Exception as e:
+            print(f"❌ Lỗi khi chạy CareerLink (Phần Mềm): {e}")
+            
+        print("\n✅ Hoàn tất chạy TẤT CẢ scraper.")
+
+    except Exception as e:
+        print(f"❌ Lỗi nghiêm trọng trong BƯỚC 1: {e}")
 
     # --- BƯỚC 2: LOAD DỮ LIỆU (SỬ DỤNG HÀM QUÉT TOÀN BỘ) ---
     print("\n----- BƯỚC 2: LOAD TẤT CẢ CSV CHƯA XỬ LÝ VÀO DATABASE -----")
