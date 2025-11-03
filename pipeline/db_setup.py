@@ -63,7 +63,6 @@ def _setup_sqlserver(connection):
     IF OBJECT_ID('dbo.raw_jobs_ta', 'U') IS NULL
     BEGIN
         CREATE TABLE dbo.raw_jobs_ta (
-            id INT IDENTITY(1,1) PRIMARY KEY,
             CongViec NVARCHAR(MAX),
             ChuyenMon NVARCHAR(MAX),
             ViTri NVARCHAR(MAX),
@@ -83,6 +82,7 @@ def _setup_sqlserver(connection):
             HanNopHoSo NVARCHAR(MAX),
             LinkBaiTuyenDung NVARCHAR(450), 
             Nguon NVARCHAR(255),
+            NgayDangTuyen DATE NULL,
             NgayCaoDuLieu DATE DEFAULT CAST(GETDATE() AS DATE),
         );
     END
