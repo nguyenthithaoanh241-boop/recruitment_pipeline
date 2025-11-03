@@ -45,8 +45,7 @@ class CareerLinkScraper:
         self.CSV_HEADER = [
             "CongViec", "DiaDiemLamViec", "MucLuong", "KinhNghiemLamViec", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
             "QuyMoCongTy", "GioiTinh", "HocVan", "YeuCauUngVien", "MoTaCongViec", "QuyenLoi",
-            "NgayDangTuyen", "HanNopHoSo", "LinkBaiUngTuyen", "Nguon",
-            "NgayCaoDuLieu"
+            "NgayDangTuyen", "HanNopHoSo", "LinkBaiUngTuyen", "Nguon"
         ]
 
         # <--- THÊM MỚI: Thiết lập logger
@@ -224,9 +223,9 @@ class CareerLinkScraper:
                     scraped_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                     title = self._safe_text(driver, By.CSS_SELECTOR, "h1.job-title.mb-0")
-                    work_location = self._safe_text(driver, By.XPATH, "(//div[@class='d-flex align-items-center mb-2'])[1]")
-                    salary = self._safe_text(driver, By.XPATH, "(//div[@class='d-flex align-items-center mb-2'])[2]")
-                    experience = self._safe_text(driver, By.XPATH, "(//div[@class='d-flex align-items-center mb-2'])[3]")
+                    work_location = self._safe_text(driver, By.XPATH, '//div[@id="job-location"]//a')
+                    salary = self._safe_text(driver, By.XPATH, '//div[@id="job-salary"]/span[contains(@class, "text-primary")]')
+                    experience = self._safe_text(driver, By.XPATH, '//div[i[contains(@class, "cli-suitcase-simple")]]/span')
                     post_date = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'date-from')]//span[last()]")
                     deadline = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'day-expired')]//b")
                     job_description = self._safe_text(driver, By.XPATH, '//div[@id="section-job-description"]//div[@class="rich-text-content"]')
@@ -241,14 +240,14 @@ class CareerLinkScraper:
                     education = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Học vấn')]/following-sibling::div")
                     gender = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Giới tính')]/following-sibling::div")
                     work_form = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Loại công việc')]/following-sibling::div")
-                    scraped_timestamp = datetime.now()
+                    
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
                         writer = csv.writer(f)
                         # <--- SỬA: Thêm 2 cột mới vào dòng
                         writer.writerow([
                             title, work_location, salary, experience, level, work_form,
                             company_name, company_link, company_size, gender, education, job_description, benefits, post_date.replace('Ngày đăng tuyển ', ''), deadline, link, self.SOURCE_WEB,
-                            scraped_timestamp.date()
+                            
                         ])
                     
                     with open(self.id_history_file, "a", encoding="utf-8") as f:

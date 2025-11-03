@@ -210,7 +210,7 @@ class TopCVScraper:
                     deadline_raw = self._get_element_text(driver, By.CSS_SELECTOR, "div.job-detail__info--deadline")
 
                     specialization = self._get_element_text(driver, By.CSS_SELECTOR, "a.item.search-from-tag.link")
-                    work_location = self._get_element_text(driver, By.XPATH, "//h3[contains(text(),'Địa điểm làm việc')]/following-sibling::div")
+                    work_location = self._get_element_text(driver, By.XPATH, "//div[contains(text(), 'Địa điểm') and contains(@class, 'job-detail__info--section-content-title')]/following-sibling::div")
                     work_time = self._get_element_text(driver, By.XPATH,"//h3[contains(text(),'Thời gian làm việc')]/following-sibling::div")
                     
                     company_name = self._get_element_text(driver, By.CSS_SELECTOR, "a.name")
