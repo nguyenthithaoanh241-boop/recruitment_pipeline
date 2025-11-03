@@ -2,79 +2,90 @@
 
 import sys
 import os
-import random
-
-# Thêm đường dẫn dự án vào sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # --- Import các thành phần của pipeline ---
-from pipeline.db_setup import setup_database_tables
 from pipeline.transformer import transform_data 
+from pipeline.config import DATASET_DIR, DB_TYPE 
 
 # --- Import các CLASS Scraper ---
 from scrapers.TopCV import TopCVScraper
 from scrapers.Careerlink import CareerLinkScraper
 
+# --- Import hàm LOADER mới ---
+from pipeline.loader import load_csv_to_staging_and_cleanup
+
+# ... (Hàm run_scrapers(scrapers) giữ nguyên, không cần sửa) ...
+def run_scrapers(scrapers: list) -> list:
+    all_saved_files = []
+    for scraper in scrapers:
+        try:
+            scraper_name = scraper.__class__.__name__
+            category = getattr(scraper, 'category_name', 'Default')
+            print(f"\n🤖 Bắt đầu chạy: {scraper_name} (Category: {category})")
+            saved_file = scraper.run() 
+            if saved_file:
+                print(f"-> Đã lưu file: {saved_file}")
+                all_saved_files.append(saved_file)
+            else:
+                print(f"-> {scraper_name} không trả về file nào.")
+        except Exception as e:
+            print(f"❌ Lỗi nghiêm trọng khi chạy {scraper.__class__.__name__}: {e}")
+    return all_saved_files
+
 
 def run_full_pipeline():
-    """
-    Chạy toàn bộ pipeline ETL từ đầu đến cuối.
-    """
     print("🚀 BẮT ĐẦU CHẠY PIPELINE TUYỂN DỤNG 🚀")
-    # Bước 0: Thiết lập database (Giữ nguyên)
-    print("\n----- BƯỚC 0: THIẾT LẬP DATABASE -----")
-    setup_database_tables()
     
-    # Bước 1: Crawl VÀ LOAD dữ liệu từ các nguồn
-    print("\n----- BƯỚC 1: CRAWL & LOAD DỮ LIỆU -----")
-    try:
-        # 1. Khởi tạo các "đối tượng" scraper
-        topcv_scraper = TopCVScraper()
-        
-        careerlink_hardware = CareerLinkScraper(
+    # --- BƯỚC 1: CRAWL (Giữ nguyên) ---
+    print("\n----- BƯỚC 1: CRAWL DỮ LIỆU (LƯU RA CSV) -----")
+    scrapers_to_run = [
+        TopCVScraper(),
+        CareerLinkScraper(
             category_name="PhanCungMang",
             base_url="https://www.careerlink.vn/viec-lam/cntt-phan-cung-mang/130"
-        )
-        
-        careerlink_software = CareerLinkScraper(
+        ),
+        CareerLinkScraper(
             category_name="PhanMem",
             base_url="https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"
+        ),
+    ]
+    saved_files = run_scrapers(scrapers_to_run)
+    
+    if not saved_files:
+        print("\nHoàn tất: Không có file nào được cào. Dừng pipeline.")
+        return
+    print(f"\n-> Hoàn tất BƯỚC 1: {len(saved_files)} file đã được lưu vào {DATASET_DIR}.")
+
+    # --- BƯỚC 2: LOAD DỮ LIỆU (Cập nhật) ---
+    print("\n----- BƯỚC 2: LOAD DỮ LIỆU TỪ CSV VÀO DATABASE -----")
+
+    # 👇 TỰ ĐỘNG CHỌN SCHEMA DỰA TRÊN CẤU HÌNH
+    target_schema = None
+    if DB_TYPE == 'sqlserver':
+        target_schema = 'dbo'
+    elif DB_TYPE == 'postgresql':
+        target_schema = 'public'
+    else:
+        print(f"❌ LỖI: Không nhận diện được DB_TYPE '{DB_TYPE}' để chọn schema.")
+        print("Dừng pipeline.")
+        return # Dừng lại nếu không biết nạp vào đâu
+
+    print(f"-> Chế độ: {DB_TYPE}. Dữ liệu sẽ được nạp vào schema: '{target_schema}'")
+
+    for file_name in saved_files:
+        full_file_path = os.path.join(DATASET_DIR, file_name)
+        
+        print("-" * 20)
+        load_csv_to_staging_and_cleanup(
+            file_path=full_file_path,
+            schema=target_schema,       
+            table_name='raw_jobs_ta'    
         )
-        
-       
-        # careerviet_software = CareerVietScraper(
-        #     category_name="PhanMem",
-        #     base_url="https://careerviet.vn/viec-lam/cntt-phan-mem-c1-vi.html"
-        # )
-        # careerviet_hardware = CareerVietScraper(
-        #     category_name="PhanCung",
-        #     base_url="https://careerviet.vn/viec-lam/cntt-phan-cung-mang-c63-vi.html"
-        # )
+    
+    print("\n-> Hoàn tất BƯỚC 2: Dữ liệu đã được nạp và file CSV đã được dọn dẹp.")
 
-        # 2. Tạo danh sách các đối tượng scraper cần chạy
-        scrapers_to_choose_from = [
-            topcv_scraper,
-            #careerlink_hardware,
-            #careerlink_software,
-            #careerviet_hardware,
-            #careerviet_software
-        ]
-
-        # 3. Chọn ngẫu nhiên một đối tượng scraper từ danh sách
-        chosen_scraper = random.choice(scrapers_to_choose_from)
-
-        # In ra để biết scraper nào được chọn
-        scraper_name = chosen_scraper.__class__.__name__
-        category = getattr(chosen_scraper, 'category_name', 'Default') # Lấy category_name nếu có
-        print(f"🤖 Lần này sẽ chạy ngẫu nhiên scraper: {scraper_name} (Category: {category})")
-        
-        # 4. Chạy phương thức .run() của đối tượng đã được chọn
-        chosen_scraper.run() 
-        
-    except Exception as e:
-        print(f"❌ Lỗi trong quá trình cào dữ liệu (Step 1): {e}")
-
-    # Bước 3: Transform dữ liệu và nạp vào Production
+    # --- BƯỚC 3: TRANSFORM (Giữ nguyên) ---
     print("\n----- BƯỚC 3: TRANSFORM DỮ LIỆU SANG PRODUCTION -----")
     # transform_data()
     
