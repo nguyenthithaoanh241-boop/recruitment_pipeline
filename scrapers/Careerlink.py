@@ -230,7 +230,6 @@ class CareerLinkScraper:
                     post_date = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'date-from')]//span[last()]")
                     deadline = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'day-expired')]//b")
                     job_description = self._safe_text(driver, By.XPATH, '//div[@id="section-job-description"]//div[@class="rich-text-content"]')
-                    skills = self._safe_text(driver, By.XPATH, '//div[@id="section-job-skills"]')
                     benefits = self._safe_text(driver, By.XPATH, '//div[@id="section-job-benefits"]')
                     try:
                         company_elem = driver.find_element(By.CSS_SELECTOR, "h5.company-name-title a")
@@ -242,14 +241,13 @@ class CareerLinkScraper:
                     education = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Học vấn')]/following-sibling::div")
                     gender = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Giới tính')]/following-sibling::div")
                     work_form = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Loại công việc')]/following-sibling::div")
-
+                    scraped_timestamp = datetime.now()
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
                         writer = csv.writer(f)
                         # <--- SỬA: Thêm 2 cột mới vào dòng
                         writer.writerow([
                             title, work_location, salary, experience, level, work_form,
-                            company_name, company_link, company_size, gender, education,
-                            skills, job_description, benefits, post_date.replace('Ngày đăng tuyển ', ''), deadline, link, self.SOURCE_WEB,
+                            company_name, company_link, company_size, gender, education, job_description, benefits, post_date.replace('Ngày đăng tuyển ', ''), deadline, link, self.SOURCE_WEB,
                             scraped_timestamp.date()
                         ])
                     
