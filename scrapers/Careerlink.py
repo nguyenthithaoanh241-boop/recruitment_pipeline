@@ -43,10 +43,10 @@ class CareerLinkScraper:
 
         # <--- SỬA: Thêm 2 cột mới vào Header
         self.CSV_HEADER = [
-            "title", "work_location", "salary", "experience", "level", "work_form", "company_name", "company_link",
-            "company_size", "gender", "education", "requirement", "job_description", "benefits",
-            "post_date", "deadline", "link", "source_web",
-            "scraped_at", "transform_status" # <--- 2 cột mới
+            "CongViec", "DiaDiemLamViec", "MucLuong", "KinhNghiemLamViec", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
+            "QuyMoCongTy", "GioiTinh", "HocVan", "YeuCauUngVien", "MoTaCongViec", "QuyenLoi",
+            "NgayDangTuyen", "HanNopHoSo", "LinkBaiUngTuyen", "Nguon",
+            "NgayCaoDuLieu"
         ]
 
         # <--- THÊM MỚI: Thiết lập logger
@@ -249,8 +249,8 @@ class CareerLinkScraper:
                         writer.writerow([
                             title, work_location, salary, experience, level, work_form,
                             company_name, company_link, company_size, gender, education,
-                            skills, job_description, benefits, post_date, deadline, link, self.SOURCE_WEB,
-                            scraped_timestamp, 0 # <--- 2 cột mới
+                            skills, job_description, benefits, post_date.replace('Ngày đăng tuyển ', ''), deadline, link, self.SOURCE_WEB,
+                            scraped_timestamp.date()
                         ])
                     
                     with open(self.id_history_file, "a", encoding="utf-8") as f:
@@ -282,7 +282,7 @@ class CareerLinkScraper:
         # <--- THÊM MỚI: Logic nạp DB và dọn dẹp file CSV ---
         if success_count > 0:
             self.logger.info(f"--- BẮT ĐẦU NẠP VÀO DATABASE ({os.path.basename(output_file)}) ---")
-            load_csv_to_staging_and_cleanup(output_file, schema='staging', table_name='raw_jobs')
+            load_csv_to_staging_and_cleanup(output_file, schema='staging', table_name='raw_jobs_ta')
             self.logger.info(f"--- KẾT THÚC NẠP VÀO DATABASE ---")
         elif not new_jobs_to_crawl:
             self.logger.info("Không có job mới, không cần nạp vào DB.")
