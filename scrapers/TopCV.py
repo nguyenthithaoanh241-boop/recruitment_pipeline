@@ -41,11 +41,11 @@ class TopCVScraper:
 
         # <--- THAY ĐỔI: Thêm 2 cột mới vào Header
         self.CSV_HEADER = [
-            "title", "specialization", "work_location", "experience", "salary",
-            "work_time", "level", "work_form", "company_name", "company_link",
-            "company_size", "recruit_quantity", "education",
-            "requirement", "job_description", "benefits", "deadline", "link", "source_web",
-            "scraped_at"
+            "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
+            "ThoiGianLamViec", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
+            "QuyMoCongTy", "SoLuongTuyen", "HocVan",
+            "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon",
+            "ThoiGianCao"
         ]
         
         # <--- THÊM MỚI: Thiết lập logger
@@ -237,7 +237,7 @@ class TopCVScraper:
                         title, specialization, work_location, experience, salary, work_time, level, work_form,
                         company_name, company_link, company_size, recruit_quantity, education, requirement, job_description, benefits,
                         deadline_raw.replace('Hạn nộp hồ sơ: ', ''), link, self.SOURCE_WEB,
-                        scraped_timestamp # <--- 2 cột mới (thời gian cào, trạng thái transform = 0)
+                        scraped_timestamp.date() 
                     ]
                     
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
