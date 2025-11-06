@@ -2,63 +2,67 @@
 import sqlalchemy
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import text 
+import sys 
+import os 
+
+# Them thu muc goc vao sys.path de import config
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+# Import config (phai nam sau khi sua sys.path)
 from pipeline.config import DATABASE_URL, DB_NAME, DB_TYPE 
 
 try:
     engine = sqlalchemy.create_engine(DATABASE_URL)
-    print(f"✅ Kết nối database thành công (Loại: {DB_TYPE})!")
+    print(f"Ket noi database thanh cong (Loai: {DB_TYPE})!")
 except Exception as e:
-    print(f"❌ Lỗi kết nối database: {e}")
+    print(f"Loi ket noi database: {e}")
     exit()
 
-def _setup_postgresql(connection):
-    """Tạo bảng và schema cho PostgreSQL."""
-    print("🔧 Bắt đầu thiết lập cấu trúc cho PostgreSQL...")
-    
-    # --- Tạo Schema 'staging' (nếu chưa có) ---
-    connection.execute(text("CREATE SCHEMA IF NOT EXISTS staging;"))
-    print("     -> Schema 'staging' đã sẵn sàng.")
 
-    # --- Tạo bảng Staging (Cú pháp PostgreSQL) ---
-    # Sử dụng các cột Tiếng Việt từ CSV_HEADER
-    connection.execute(text("""
-    CREATE TABLE IF NOT EXISTS staging.raw_jobs(
-        id SERIAL PRIMARY KEY,
-        CongViec TEXT,
-        ChuyenMon TEXT,
-        ViTri TEXT,
-        YeuCauKinhNghiem TEXT,
-        MucLuong TEXT,
-        ThoiGianLamViec TEXT,
-        CapBac TEXT,
-        HinhThucLamViec TEXT,
-        CongTy TEXT,
-        LinkCongTy TEXT,
-        QuyMoCongTy TEXT,
-        SoLuongTuyen TEXT,
-        HocVan TEXT,
-        YeuCauUngVien TEXT,
-        MoTaCongViec TEXT,
-        QuyenLoi TEXT,
-        HanNopHoSo TEXT,
-        LinkBaiTuyenDung TEXT,
-        Nguon TEXT,
-        "NgayCaoDuLieu" DATE DEFAULT CURRENT_DATE,
-    );
+def _setup_mysql(connection):
+    """Tao bang 22 cot cho MySQL."""
+    
+    print("Bat dau thiet lap cau truc cho MySQL...")
+    print(f"    -> Dang lam viec tren database: '{DB_NAME}'.")
+
+    # Su dung LONGTEXT va utf8mb4 de ho tro tieng Viet
+    connection.execute(text(f"""
+    CREATE TABLE IF NOT EXISTS raw_jobs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        CongViec LONGTEXT,
+        ChuyenMon LONGTEXT,
+        ViTri LONGTEXT,
+        YeuCauKinhNghiem LONGTEXT,
+        MucLuong LONGTEXT,
+        ThoiGianLamViec LONGTEXT,
+        GioiTinh LONGTEXT, 
+        CapBac LONGTEXT,
+        HinhThucLamViec LONGTEXT,
+        CongTy LONGTEXT,
+        LinkCongTy LONGTEXT,
+        QuyMoCongTy LONGTEXT,
+        SoLuongTuyen LONGTEXT,
+        HocVan LONGTEXT,
+        YeuCauUngVien LONGTEXT,
+        MoTaCongViec LONGTEXT,
+        QuyenLoi LONGTEXT,
+        HanNopHoSo LONGTEXT,
+        LinkBaiTuyenDung LONGTEXT,
+        Nguon LONGTEXT,
+        NgayCaoDuLieu DATE,
+        LinhVuc LONGTEXT 
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """))
-    print("     -> Bảng 'staging.raw_jobs_ta' (Tiếng Việt) đã sẵn sàng.")
+    
+    print(f"    -> Bang '{DB_NAME}.raw_jobs' (22 cot) da san sang.")
 
 
 def _setup_sqlserver(connection):
-    """Tạo bảng và schema cho SQL Server."""
-    print("🔧 Bắt đầu thiết lập cấu trúc cho SQL Server...")
+    """Tao bang 22 cot cho SQL Server."""
+    print("Bat dau thiet lap cau truc cho SQL Server...")
+    print("    -> Se su dung schema 'dbo' mac dinh.")
 
-    # --- Tạo Schema 'dbo' (mặc định) ---
-    # (Chúng ta sẽ tạo bảng trong 'dbo' để khớp với main.py và ảnh của bạn)
-    print("     -> Sẽ sử dụng schema 'dbo' mặc định.")
-
-    # --- Tạo bảng Staging (Cú pháp SQL Server) ---
-    # Sử dụng các cột Tiếng Việt từ CSV_HEADER
     connection.execute(text("""
     IF OBJECT_ID('dbo.raw_jobs_ta', 'U') IS NULL
     BEGIN
@@ -69,6 +73,7 @@ def _setup_sqlserver(connection):
             YeuCauKinhNghiem NVARCHAR(MAX),
             MucLuong NVARCHAR(MAX),
             ThoiGianLamViec NVARCHAR(MAX),
+            GioiTinh NVARCHAR(MAX),
             CapBac NVARCHAR(MAX),
             HinhThucLamViec NVARCHAR(MAX),
             CongTy NVARCHAR(MAX),
@@ -82,42 +87,45 @@ def _setup_sqlserver(connection):
             HanNopHoSo NVARCHAR(MAX),
             LinkBaiTuyenDung NVARCHAR(450), 
             Nguon NVARCHAR(255),
-            NgayDangTuyen DATE NULL,
-            NgayCaoDuLieu DATE DEFAULT CAST(GETDATE() AS DATE),
+            NgayCaoDuLieu DATE,
+            LinhVuc NVARCHAR(MAX) 
         );
     END
     """))
-    print("     -> Bảng 'dbo.raw_jobs_ta' (Tiếng Việt) đã sẵn sàng.")
+    print("    -> Bang 'dbo.raw_jobs_ta' (22 cot) da san sang.")
 
 
 def setup_database_tables():
     """
-    Hàm này tạo các schema và bảng cần thiết cho pipeline.
-    Nó sẽ tự động gọi hàm setup cho đúng loại database.
+    Tu dong goi ham setup cho dung loai database (DB_TYPE).
     """
     try:
         with engine.connect() as connection:
             with connection.begin() as transaction:
                 
-                if DB_TYPE == "postgresql":
-                    _setup_postgresql(connection)
+                if DB_TYPE == "mysql":
+                    _setup_mysql(connection)
                 elif DB_TYPE == "sqlserver":
                     _setup_sqlserver(connection)
                 else:
-                    raise ValueError(f"DB_TYPE '{DB_TYPE}' không được hỗ trợ.")
+                    raise ValueError(f"DB_TYPE '{DB_TYPE}' khong duoc ho tro.")
                 
-            print("✅ Hoàn tất thiết lập database!")
+            print("Hoan tat thiet lap database!")
 
     except ProgrammingError as e:
-        if (("does not exist" in str(e).lower() or "cannot open database" in str(e).lower()) 
+        # Bat loi neu database (schema) khong ton tai
+        if (("does not exist" in str(e).lower() 
+             or "cannot open database" in str(e).lower()
+             or "unknown database" in str(e).lower()) 
             and DB_NAME in str(e)):
-            print(f"❌ Lỗi: Database '{DB_NAME}' không tồn tại.")
-            print(f"     Vui lòng tạo database này trong {DB_TYPE} trước khi chạy pipeline.")
+            print(f"Loi: Database '{DB_NAME}' khong ton tai.")
+            print(f"    Vui long tao database nay trong {DB_TYPE} truoc khi chay pipeline.")
         else:
-            print(f"❌ Đã xảy ra lỗi SQL: {e}")
+            print(f"Da xay ra loi SQL: {e}")
     except Exception as e:
-        print(f"❌ Đã xảy ra lỗi không xác định: {e}")
+        print(f"Da xay ra loi khong xac dinh: {e}")
 
-# Cho phép chạy file này độc lập để setup DB
 if __name__ == "__main__":
+    print("--- Bat dau chay DB Setup doc lap ---")
     setup_database_tables()
+    print("--- Hoan tat chay DB Setup ---")
