@@ -12,3 +12,5 @@ python-dotenv
 
 # Driver chung cho SQL Server
 pyodbc
+pymysql
+cryptography
