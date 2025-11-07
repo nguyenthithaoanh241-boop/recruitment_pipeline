@@ -6,4 +6,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 dataset/archive/
-*.txt
+page
+page_careerviet.txt
+CareerLink_id_history.txt
+seen_links_IT_Hardware_Network.txt
+seen_links_IT_Software.txt
+TopCV_id_history.txt
+TopCV_max_page.txt
