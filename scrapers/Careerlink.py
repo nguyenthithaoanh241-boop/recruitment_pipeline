@@ -1,5 +1,6 @@
 # scrapers/careerlink_scraper.py
 
+import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -7,21 +8,23 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time, random, csv, os, datetime, re, sys, logging # <--- THÊM 'sys' và 'logging'
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import time, random, csv, os, re, sys, logging
+from datetime import datetime
 
-# <--- THÊM MỚI: Import hàm loader từ file script/loader.py
+# Them project root vao sys.path de chay doc lap
 project_root_for_import = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root_for_import)
-from pipeline.loader import load_csv_to_staging_and_cleanup
+
 
 class CareerLinkScraper:
     def __init__(self, category_name, base_url):
-        """Khởi tạo scraper cho một danh mục cụ thể trên CareerLink."""
+        """Khoi tao scraper cho mot danh muc CareerLink."""
         self.category_name = category_name
         self.base_url = base_url
         self.SOURCE_WEB = "CareerLink"
 
-        # ===== CẤU HÌNH CHUNG =====
+        # Cau hinh chung
         self.PAUSE_BETWEEN_PAGES_MIN = 3
         self.PAUSE_BETWEEN_PAGES_MAX = 6
         self.PAUSE_BETWEEN_JOBS_MIN = 4
@@ -29,57 +32,53 @@ class CareerLinkScraper:
         self.JOBS_PER_LONG_BREAK = 50
         self.LONG_BREAK_DURATION_MIN = 60
         self.LONG_BREAK_DURATION_MAX = 120
-        self.JOB_LIMIT = 81
-        # ===== THIẾT LẬP ĐƯỜNG DẪN =====
+        self.JOB_LIMIT = 100
+        
+        # Thiet lap duong dan
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         scraper_dir = os.path.dirname(os.path.abspath(__file__))
 
         self.csv_output_dir = os.path.join(project_root, "dataset")
         os.makedirs(self.csv_output_dir, exist_ok=True)
         
-        # Sử dụng chung file log và history cho toàn bộ CareerLink
+        # Su dung chung file log/history cho CareerLink
         self.log_file = os.path.join(scraper_dir, "CareerLink.log")
         self.id_history_file = os.path.join(scraper_dir, "CareerLink_id_history.txt")
 
-        # <--- SỬA: Thêm 2 cột mới vào Header
+        
+        # ==========================================================
+        # SUA 1: Header CSV (Cap nhat du 22 cot)
+        # ==========================================================
         self.CSV_HEADER = [
-            "CongViec", "DiaDiemLamViec", "MucLuong", "KinhNghiemLamViec", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
-            "QuyMoCongTy", "GioiTinh", "HocVan", "YeuCauUngVien", "MoTaCongViec", "QuyenLoi",
-            "NgayDangTuyen", "HanNopHoSo", "LinkBaiUngTuyen", "Nguon"
+            "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
+            "ThoiGianLamViec", "GioiTinh", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
+            "QuyMoCongTy", "SoLuongTuyen", "HocVan",
+            "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon","NgayCaoDuLieu",
+            "LinhVuc"
         ]
-
-        # <--- THÊM MỚI: Thiết lập logger
+        
         self._setup_logging()
-        # Tạo 1 logger con riêng cho category này (ví dụ: 'CareerLink.IT-Software')
-        self.logger = logging.getLogger(f"{self.SOURCE_WEB}.{self.category_name}") # <--- THÊM MỚI
+        self.logger = logging.getLogger(f"{self.SOURCE_WEB}.{self.category_name}") 
 
-    def _setup_logging(self): # <--- THÊM MỚI: Hàm thiết lập logging
-        """
-        Cấu hình base logger 'CareerLink'. 
-        Chỉ thêm handler NẾU nó chưa được thiết lập (tránh lặp log khi tạo nhiều instance).
-        """
-        base_logger = logging.getLogger(self.SOURCE_WEB) # Logger gốc là 'CareerLink'
+    def _setup_logging(self): 
+        
+        base_logger = logging.getLogger(self.SOURCE_WEB)
         base_logger.setLevel(logging.INFO)
 
-        # Chỉ thêm handler nếu logger này chưa có
         if not base_logger.hasHandlers():
-            # Định dạng log (bao gồm tên của logger con)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-            # Handler cho File
             file_handler = logging.FileHandler(self.log_file, encoding='utf-8')
             file_handler.setLevel(logging.INFO)
             file_handler.setFormatter(formatter)
             base_logger.addHandler(file_handler)
 
-            # Handler cho Console
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setLevel(logging.INFO)
             console_handler.setFormatter(formatter)
             base_logger.addHandler(console_handler)
 
     def _create_driver(self):
-        """Tạo và trả về một instance của Chrome WebDriver."""
         chrome_options = Options()
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--disable-infobars")
@@ -90,25 +89,23 @@ class CareerLinkScraper:
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
     
-
     def _get_existing_ids(self):
-        """Đọc và trả về một set các ID đã cào từ trước."""
+        """Doc va tra ve set ID da cao tu file history."""
         if not os.path.exists(self.id_history_file): return set()
         try:
             with open(self.id_history_file, 'r', encoding='utf-8') as f:
                 return {line.strip() for line in f if line.strip()}
         except Exception as e:
-            self.logger.error(f"Lỗi khi đọc file lịch sử ID {self.id_history_file}: {e}") # <--- SỬA
+            self.logger.error(f"Loi khi doc file lich su ID {self.id_history_file}: {e}") 
             return set()
 
     def _extract_job_id_from_link(self, link):
-        """Trích xuất ID từ link job của CareerLink."""
+        """Trich xuat ID tu link job CareerLink."""
         if not link: return None
-        match = re.search(r'/(\d+)(?=\?|$)', link)
+        match = re.search(r'/(\d+)(?=\?|$)', link) 
         return match.group(1) if match else None
 
     def _human_like_scroll(self, driver):
-        """Cuộn trang một cách tự nhiên."""
         scroll_height = driver.execute_script("return document.body.scrollHeight")
         current_position = 0
         step = random.randint(300, 600)
@@ -118,14 +115,14 @@ class CareerLinkScraper:
             time.sleep(random.uniform(0.3, 0.8))
 
     def _safe_text(self, driver, by, selector):
-        """Lấy text của element một cách an toàn."""
+        """Lay text an toan, tra ve "" neu loi."""
         try:
             return driver.find_element(by, selector).text.strip()
         except:
             return ""
 
     def _get_max_page(self, driver, link):
-        """Lấy số trang tối đa của một danh mục."""
+        """Lay so trang toi da cua danh muc."""
         driver.get(link)
         try:
             WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul.pagination li a")))
@@ -141,12 +138,13 @@ class CareerLinkScraper:
             return 1
 
     def run(self):
-        """Phương thức chính để chạy toàn bộ quá trình cào dữ liệu."""
-        self.logger.info("🚀 Bắt đầu phiên cào dữ liệu CareerLink mới...") # <--- SỬA
         
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        start_time = time.time()
+        self.logger.info(f"Bat dau phien cao du lieu [{self.category_name}]...") 
+        
+        now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         output_file = os.path.join(self.csv_output_dir, f"CareerLink_{self.category_name}_jobs_{now_str}.csv")
-        self.logger.info(f"📄 Dữ liệu lần này sẽ được lưu vào file: {os.path.basename(output_file)}") # <--- SỬA
+        self.logger.info(f"Du lieu lan nay se duoc luu vao file: {os.path.basename(output_file)}") 
         
         with open(output_file, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.writer(f)
@@ -154,34 +152,35 @@ class CareerLinkScraper:
 
         driver = self._create_driver()
         existing_ids = self._get_existing_ids()
-        self.logger.info(f"📊 Đã tìm thấy {len(existing_ids)} ID jobs trong lịch sử chung của CareerLink.") # <--- SỬA
+        self.logger.info(f"Da tim thay {len(existing_ids)} ID jobs trong lich su chung cua CareerLink.") 
         
         new_jobs_to_crawl = []
         try:
             max_page = self._get_max_page(driver, self.base_url)
-            self.logger.info(f"🔎 Link {self.base_url} có tối đa {max_page} trang.") # <--- SỬA
+            self.logger.info(f"Link {self.base_url} co toi da {max_page} trang.") 
         except Exception as e:
-            self.logger.error(f"❌ Không thể lấy số trang tối đa. Lỗi: {e}. Dừng chương trình.") # <--- SỬA
+            self.logger.error(f"Khong the lay so trang toi da. Loi: {e}. Dung chuong trinh.") 
             driver.quit()
-            return
+            return None 
 
         
+        # Vong 1: Thu thap Link
         for page in range(1, max_page + 1):
-            
+        
             url = f"{self.base_url}?page={page}"
-            self.logger.info(f"🔎 Đang quét trang {page}: {url}") # <--- SỬA
+            self.logger.info(f"Dang quet trang {page}: {url}") 
             try:
                 driver.get(url)
                 time.sleep(random.uniform(2, 4))
                 self._human_like_scroll(driver)
                 WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.job-link.clickable-outside")))
             except Exception as e:
-                self.logger.warning(f"⚠️ Trang {page} không load được. Bỏ qua trang. Lỗi: {e}") # <--- SỬA
+                self.logger.warning(f"Trang {page} khong load duoc. Bo qua trang. Loi: {e}") 
                 continue
 
             job_cards = driver.find_elements(By.CSS_SELECTOR, "a.job-link.clickable-outside")
             if not job_cards:
-                self.logger.info(f"✅ Web chỉ có tới trang {page-1}. Dừng thu thập.") # <--- SỬA
+                self.logger.info(f"Web chi co toi trang {page-1}. Dung thu thap.") 
                 break
 
             new_jobs_found_on_page = 0
@@ -197,21 +196,22 @@ class CareerLinkScraper:
                     continue
             
             if new_jobs_found_on_page > 0:
-                self.logger.info(f"Trang {page} → Tìm thấy {new_jobs_found_on_page} job MỚI.") # <--- SỬA
+                self.logger.info(f"Trang {page} -> Tim thay {new_jobs_found_on_page} job MOI.") 
             else:
-                self.logger.info(f"Trang {page} không có job nào mới. (Tiếp tục quét...)") # <--- SỬA
+                self.logger.info(f"Trang {page} khong co job nao moi. (Tiep tuc quet...)") 
 
             pause_time = random.uniform(self.PAUSE_BETWEEN_PAGES_MIN, self.PAUSE_BETWEEN_PAGES_MAX)
-            self.logger.info(f"--- Nghỉ {round(pause_time, 1)} giây trước khi sang trang tiếp theo ---") # <--- SỬA
+            self.logger.info(f"--- Nghi {round(pause_time, 1)} giay truoc khi sang trang tiep theo ---") 
             time.sleep(pause_time)
 
-        self.logger.info(f"🎉 Đã thu thập xong. Có {len(new_jobs_to_crawl)} job mới cần cào chi tiết.") # <--- SỬA
+        self.logger.info(f"Da thu thap xong. Co {len(new_jobs_to_crawl)} job moi can cao chi tiet.") 
         
         success_count, error_count = 0, 0
         
         if not new_jobs_to_crawl:
-            self.logger.info("Không có job mới nào để cào. Kết thúc.") # <--- SỬA
+            self.logger.info("Khong co job moi nao de cao. Ket thuc.") 
         else:
+            # Vong 2: Cao chi tiet
             for idx, (link, job_id) in enumerate(new_jobs_to_crawl, 1):
                 try:
                     driver.get(link)
@@ -219,82 +219,192 @@ class CareerLinkScraper:
                     self._human_like_scroll(driver)
                     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.job-detail")))
                     
-                    # <--- THÊM MỚI: Lấy thời gian cào
-                    scraped_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # ==========================================================
+                    # SUA 2: Khoi tao du 22 bien (them cac cot thieu)
+                    # ==========================================================
+                    title, work_location, salary, experience, deadline = "", "", "", "", ""
+                    job_description, skills, benefits = "", "", ""
+                    company_name, company_link, company_size = "", "", ""
+                    level, education, gender, work_form = "", "", "", ""
+                    
+                    # Them cac cot thieu de khop DB
+                    specialization = "" 
+                    work_time = ""      
+                    recruit_quantity = "" 
+                    # Cao tung bien
+                    try:
+                        title = self._safe_text(driver, By.CSS_SELECTOR, "h1.job-title.mb-0")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'title' (ID: {job_id}): {e}")
+                    
+                    try:
+                        work_location = self._safe_text(driver, By.XPATH, '//div[@id="job-location"]//a')
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'work_location' (ID: {job_id}): {e}")
 
-                    title = self._safe_text(driver, By.CSS_SELECTOR, "h1.job-title.mb-0")
-                    work_location = self._safe_text(driver, By.XPATH, '//div[@id="job-location"]//a')
-                    salary = self._safe_text(driver, By.XPATH, '//div[@id="job-salary"]/span[contains(@class, "text-primary")]')
-                    experience = self._safe_text(driver, By.XPATH, '//div[i[contains(@class, "cli-suitcase-simple")]]/span')
-                    post_date = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'date-from')]//span[last()]")
-                    deadline = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'day-expired')]//b")
-                    job_description = self._safe_text(driver, By.XPATH, '//div[@id="section-job-description"]//div[@class="rich-text-content"]')
-                    benefits = self._safe_text(driver, By.XPATH, '//div[@id="section-job-benefits"]')
+                    try:
+                        salary = self._safe_text(driver, By.XPATH, '//div[@id="job-salary"]/span[contains(@class, "text-primary")]')
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'salary' (ID: {job_id}): {e}")
+
+                    try:
+                        experience = self._safe_text(driver, By.XPATH, '//div[i[contains(@class, "cli-suitcase-simple")]]/span')
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'experience' (ID: {job_id}): {e}")
+
+                    try:
+                        deadline = self._safe_text(driver, By.XPATH, "//div[@id='job-date']//div[contains(@class,'day-expired')]//b")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'deadline' (ID: {job_id}): {e}")
+
+                    try:
+                        job_description_elem = driver.find_element(By.XPATH, '//div[@id="section-job-description"]//div[@class="rich-text-content"]')
+                        job_description = job_description_elem.text.strip()
+                    except Exception as e:
+                        self.logger.warning(f"Loi nho khi cao 'job_description' (ID: {job_id}): {e}")
+
+                    try:
+                        skills = self._safe_text(driver, By.XPATH, '//div[@id="section-job-skills"]')
+                    except Exception as e:
+                        self.logger.warning(f"Loi nho khi cao 'skills' (ID: {job_id}): {e}")
+
+                    try:
+                        benefits_elem = driver.find_element(By.XPATH, '//div[@id="section-job-benefits"]')
+                        benefits = benefits_elem.text.strip()
+                    except Exception as e:
+                        self.logger.warning(f"Loi nho khi cao 'benefits' (ID: {job_id}): {e}")
+                    
                     try:
                         company_elem = driver.find_element(By.CSS_SELECTOR, "h5.company-name-title a")
                         company_name = company_elem.get_attribute("title").strip()
                         company_link = company_elem.get_attribute("href")
-                    except: company, company_link = "", ""
-                    company_size = self._safe_text(driver, By.XPATH, "//i[contains(@class,'cli-users')]/following-sibling::span")
-                    level = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Cấp bậc')]/following-sibling::div")
-                    education = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Học vấn')]/following-sibling::div")
-                    gender = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Giới tính')]/following-sibling::div")
-                    work_form = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Loại công việc')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'company_name/link' (ID: {job_id}): {e}")
                     
+                    try:
+                        company_size = self._safe_text(driver, By.XPATH, "//i[contains(@class,'cli-users')]/following-sibling::span")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'company_size' (ID: {job_id}): {e}")
+
+                    try:
+                        level = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Cấp bậc')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'level' (ID: {job_id}): {e}")
+
+                    try:
+                        education = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Học vấn')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'education' (ID: {job_id}): {e}")
+
+                    try:
+                        gender = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Giới tính')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'gender' (ID: {job_id}): {e}")
+                    try:
+                        linh_vuc = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Ngành nghề')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'gender' (ID: {job_id}): {e}")
+
+                    try:
+                        work_form = self._safe_text(driver, By.XPATH, "//div[contains(text(),'Loại công việc')]/following-sibling::div")
+                    except Exception as e:
+                         self.logger.warning(f"Loi nho khi cao 'work_form' (ID: {job_id}): {e}")
+                    
+                    
+                    ngay_cao_hien_tai = datetime.now().strftime('%Y-%m-%d')
+                    
+                    # Ghi vao CSV
                     with open(output_file, "a", encoding="utf-8-sig", newline="") as f:
                         writer = csv.writer(f)
-                        # <--- SỬA: Thêm 2 cột mới vào dòng
+                        
+                        # ==========================================================
+                        # SUA 3: Ghi du 22 cot theo dung thu tu
+                        # ==========================================================
                         writer.writerow([
-                            title, work_location, salary, experience, level, work_form,
-                            company_name, company_link, company_size, gender, education, job_description, benefits, post_date.replace('Ngày đăng tuyển ', ''), deadline, link, self.SOURCE_WEB,
-                            
+                            title, specialization, work_location, experience, salary,
+                            work_time, gender, level, work_form,
+                            company_name, company_link, company_size, recruit_quantity, education,
+                            skills,
+                            job_description, benefits,
+                            deadline, link, self.SOURCE_WEB, ngay_cao_hien_tai,
+                            linh_vuc
                         ])
                     
+                    # Ghi vao history ID
                     with open(self.id_history_file, "a", encoding="utf-8") as f:
                         f.write(job_id + "\n")
 
                     success_count += 1
-                    self.logger.info(f"✅ [{success_count}/{len(new_jobs_to_crawl)}] Đã cào và lưu job ID {job_id}: {title[:60]}...") # <--- SỬA
+                    self.logger.info(f"[{success_count}/{len(new_jobs_to_crawl)}] Da cao va luu job ID {job_id}: {title[:60]}...") 
                     
-                    #mỗi lần cũng chỉ cào đc thêm 81 jobs, lớn hơn là lỗi
                     if success_count >= self.JOB_LIMIT:
-                        self.logger.info(f"🔔 Đã đạt giới hạn {self.JOB_LIMIT} job thành công. Dừng cào chi tiết.") # <--- SỬA
-                        break # Thoát khỏi vòng lặp cào chi tiết
+                        self.logger.info(f"Da dat gioi han {self.JOB_LIMIT} job thanh cong. Dung cao chi tiet.") 
+                        break 
 
+                    # Tam nghi
                     if success_count % self.JOBS_PER_LONG_BREAK == 0 and success_count < len(new_jobs_to_crawl):
                         sleep_time = random.uniform(self.LONG_BREAK_DURATION_MIN, self.LONG_BREAK_DURATION_MAX)
-                        self.logger.info(f"⏸ Nghỉ dài sau {success_count} job... Sẽ tiếp tục sau {round(sleep_time/60, 1)} phút.") # <--- SỬA
+                        self.logger.info(f"Nghi dai sau {success_count} job... Se tiep tuc sau {round(sleep_time/60, 1)} phut.") 
                         time.sleep(sleep_time)
                     else:
                         time.sleep(random.uniform(self.PAUSE_BETWEEN_JOBS_MIN, self.PAUSE_BETWEEN_JOBS_MAX))
                 
                 except Exception as e:
                     error_count += 1
-                    self.logger.error(f"❌ Lỗi khi xử lý link {idx}/{len(new_jobs_to_crawl)} (ID: {job_id}): {link} | {e}") # <--- SỬA
-                    driver.get(self.base_url)
-                    time.sleep(5)
-            
+                    self.logger.error(f"Loi NGHIEM TRONG khi xu ly link {idx}/{len(new_jobs_to_crawl)} (ID: {job_id}): {link} | {e}") 
+                    try:
+                        driver.get(self.base_url)
+                        time.sleep(5)
+                    except Exception as e_nav:
+                        self.logger.error(f"Loi khi dieu huong ve trang chu. Khoi dong lai driver... {e_nav}")
+                        driver.quit()
+                        time.sleep(5)
+                        driver = self._create_driver()
+
         driver.quit()
         
-        # <--- THÊM MỚI: Logic nạp DB và dọn dẹp file CSV ---
-        if success_count > 0:
-            self.logger.info(f"--- BẮT ĐẦU NẠP VÀO DATABASE ({os.path.basename(output_file)}) ---")
-            load_csv_to_staging_and_cleanup(output_file, schema='staging', table_name='raw_jobs_ta')
-            self.logger.info(f"--- KẾT THÚC NẠP VÀO DATABASE ---")
-        elif not new_jobs_to_crawl:
-            self.logger.info("Không có job mới, không cần nạp vào DB.")
-            try:
-                os.remove(output_file) # Xóa file CSV rỗng (chỉ có header)
-                self.logger.info(f"Đã xóa file CSV rỗng: {output_file}")
-            except Exception as e:
-                self.logger.error(f"Không thể xóa file rỗng {output_file}: {e}")
-        else: # Có job mới nhưng cào lỗi 100%
-            self.logger.warning(f"Tất cả {len(new_jobs_to_crawl)} job mới đều cào bị lỗi. Không nạp vào DB.")
-            try:
-                os.remove(output_file) # Xóa file CSV rỗng (chỉ có header)
-                self.logger.info(f"Đã xóa file CSV rỗng: {output_file}")
-            except Exception as e:
-                self.logger.error(f"Không thể xóa file rỗng {output_file}: {e}")
-        # --- Hết khối code thêm mới ---
+    
+        end_time = time.time()
+        total_minutes = round((end_time - start_time) / 60, 2)
         
-        self.logger.info(f"🎉 Crawl xong - Đã lưu {success_count} job MỚI, Lỗi: {error_count}") # <--- SỬA
+        # LOGIC XU LY FILE (Xoa file neu rong)
+        if success_count > 0:
+            self.logger.info(f"Crawl xong [{self.category_name}] trong {total_minutes} phut - Da luu {success_count} job MOI, Loi: {error_count}")
+            return os.path.basename(output_file) 
+        
+        self.logger.info(f"Crawl xong [{self.category_name}] trong {total_minutes} phut - Khong co job moi. Loi: {error_count}")
+        if os.path.exists(output_file):
+            try:
+                os.remove(output_file) 
+                self.logger.info(f"Da xoa file CSV rong: {os.path.basename(output_file)}")
+            except Exception as e:
+                self.logger.error(f"Khong the xoa file rong {os.path.basename(output_file)}: {e}")
+        
+        return None
+
+# ==================================================
+# KHOI CODE DE CHAY DOC LAP
+# ==================================================
+if __name__ == '__main__':
+    # Them thu muc goc vao sys.path de chay doc lap
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.append(project_root)
+
+    # --- DINH NGHIA CAC DANH MUC BAN MUON CHAY ---
+    categories_to_run = [("IT_Hardware_Network", "https://www.careerlink.vn/viec-lam/cntt-phan-cung-mang/130"),
+        ("IT_Software", "https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"),
+        
+    ]
+
+    print(f"--- [BAT DAU] Dang chay CareerLink Scraper cho {len(categories_to_run)} danh muc ---")
+    
+    for category_name, base_url in categories_to_run:
+        print(f"\n--- Dang xu ly danh muc: {category_name} ---")
+        try:
+            scraper = CareerLinkScraper(category_name, base_url)
+            scraper.run()
+        except Exception as e:
+            print(f"!!! LOI NGHIEM TRONG (CareerLink - {category_name}): {e}")
+    
+    print("--- [HOAN TAT] CareerLink Scraper ---")

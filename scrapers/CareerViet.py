@@ -182,14 +182,13 @@ class CareerVietScraper:
 
             # Them do tre CUNG ngay sau khi click de cho JS xu ly
             self.logger.debug("Da click tab 'Tong quan', doi vai giay cho JS...")
-            time.sleep(random.uniform(1.5, 2.5)) 
+            time.sleep(random.uniform(1.0, 1.5)) 
 
             # Doi cho noi dung cua tab xuat hien
             WebDriverWait(self.driver, 10).until(
                     EC.visibility_of_element_located((By.CSS_SELECTOR, "div.info"))
                 )
 
-            # Doi them mot chut de dam bao render xong
             time.sleep(random.uniform(0.5, 1.0))
 
 
@@ -441,8 +440,8 @@ class CareerVietScraper:
 if __name__ == '__main__':
     
     # --- Cau hinh URL ---
-    url_1 = "https.careerviet.vn/viec-lam/cntt-phan-mem-c1-sortdv-vi.html"
-    url_2 = "https.careerviet.vn/viec-lam/cntt-phan-cung-mang-c63-sortdv-vi.html"
+    url_1 = "https://careerviet.vn/viec-lam/cntt-phan-mem-c1-sortdv-vi.html"
+    url_2 = "https://careerviet.vn/viec-lam/cntt-phan-cung-mang-c63-sortdv-vi.html"
     
     
     # --- Logic doc/ghi file so trang ---
@@ -480,7 +479,7 @@ if __name__ == '__main__':
         print("\n--- Dang xu ly danh muc: IT_Software ---")
         scraper_sw = CareerVietScraper("IT_Software", url_1) 
         # Truyen page vao ham run
-        scraper_sw.run(start_page=current_page, end_page=current_page)
+        scraper_sw.run(start_page=1, end_page=current_page)
     except Exception as e:
         print(f"!!! LOI NGHIEM TRONG (CareerViet - IT_Software): {e}")
         logging.exception("Loi nghiem trong IT_Software") 
@@ -490,7 +489,7 @@ if __name__ == '__main__':
         print("\n--- Dang xu ly danh muc: IT_Hardware_Network ---")
         scraper_hw = CareerVietScraper("IT_Hardware_Network", url_2)
         # Truyen page vao ham run
-        scraper_hw.run(start_page=current_page, end_page=current_page)
+        scraper_hw.run(start_page=1, end_page=current_page)
     except Exception as e:
         print(f"!!! LOI NGHIEM TRONG (CareerViet - IT_Hardware_Network): {e}")
         logging.exception("Loi nghiem trong IT_Hardware_Network")
