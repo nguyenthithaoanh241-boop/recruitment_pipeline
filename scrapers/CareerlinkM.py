@@ -129,7 +129,7 @@ class CareerLinkScraper:
         try:
             # Tai trang 1 (la self.base_url)
             self.logger.info(f"Dang tai trang 1 ({self.base_url}) de xac dinh so trang toi da (max_page)...")
-            driver.get(self.base_url)
+            driver.get(self.base_url) # base_url la trang 1
             
             # Doi cho thanh pagination xuat hien
             pagination_ul = WebDriverWait(driver, 15).until(
@@ -170,7 +170,7 @@ class CareerLinkScraper:
         except Exception as e:
             self.logger.error(f"Loi khong xac dinh khi tim max page: {e}. Dat max_page = 1.")
             return 1
-    
+            
     def run(self):
         
         start_time = time.time()
@@ -187,7 +187,7 @@ class CareerLinkScraper:
         driver = self._create_driver()
         existing_ids = self._get_existing_ids()
         self.logger.info(f"Da tim thay {len(existing_ids)} ID jobs trong lich su chung cua CareerLink.") 
-
+        
         # ==========================================================
         # [THEM MOI] Logic tim max page
         # ==========================================================
@@ -198,7 +198,6 @@ class CareerLinkScraper:
             self.logger.error(f"Gap loi nghiem trong khi lay max_page: {e}. Dung quet trang.")
             driver.quit()
             return None # Thoat som
-        
         
         new_jobs_to_crawl = []
         
@@ -218,9 +217,9 @@ class CareerLinkScraper:
             if consecutive_pages_with_no_new_jobs >= MAX_CONSECUTIVE_EMPTY_PAGES:
                 self.logger.info(f"Dung quet vi {MAX_CONSECUTIVE_EMPTY_PAGES} trang lien tiep khong co job MOI nao (mac du max_page la {max_page_limit}).")
                 break # Dung vong lap 'while'
-
+            
+            # [DIEU CHINH] Logic tai trang
             try:
-                # [DIEU CHINH] Logic tai trang
                 if page == 1:
                     self.logger.info(f"Dang xu ly trang {page}/{max_page_limit} (da duoc tai de lay max_page)...")
                     # Trang 1 da duoc tai, chi can scroll/wait
@@ -228,23 +227,24 @@ class CareerLinkScraper:
                     WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.job-link.clickable-outside")))
                 else:
                     url = f"{self.base_url}?page={page}"
-                    self.logger.info(f"Dang quet trang {page}/{max_page_limit}...")
+                    self.logger.info(f"Dang quet trang {page}/{max_page_limit}...") 
                     driver.get(url)
                     time.sleep(random.uniform(2, 4))
                     self._human_like_scroll(driver)
                     WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.job-link.clickable-outside")))
-            
             except Exception as e:
                 self.logger.warning(f"Trang {page} khong load duoc. Bo qua trang. Loi: {e}") 
                 page += 1
-                continue # [THAY DOI] Tiep tuc vong while
+                continue
 
             job_cards = driver.find_elements(By.CSS_SELECTOR, "a.job-link.clickable-outside")
+            
+            # [THAY DOI] Logic xu ly khi khong co job card
             if not job_cards:
                 self.logger.info(f"Trang {page} khong co job nao. Chuyen trang tiep theo.") 
-                page += 1
                 consecutive_pages_with_no_new_jobs += 1 # Dem trang rong
-                continue # [THAY DOI] Tiep tuc vong while
+                page += 1 # Tang trang
+                continue # Tiep tuc vong while, thay vi 'break'
 
             new_jobs_found_on_page = 0
             for card in job_cards:
@@ -476,7 +476,8 @@ if __name__ == '__main__':
     sys.path.append(project_root)
 
     
-    categories_to_run = [("IT_Hardware_Network", "https://www.careerlink.vn/viec-lam/cntt-phan-cung-mang/130")
+    categories_to_run = [
+        ("IT_Software", "https://www.careerlink.vn/viec-lam/cntt-phan-mem/19"),
         
     ]
 
