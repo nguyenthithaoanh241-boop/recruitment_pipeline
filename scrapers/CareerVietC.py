@@ -17,7 +17,7 @@ sys.path.append(project_root_for_import)
 
 
 class CareerVietScraper:
-    JOB_LIMIT = 50 # (Ban dang de 10 de test)
+    JOB_LIMIT = 50
     
     def __init__(self, category_name, base_url):
         """Khoi tao scraper cho mot danh muc CareerViet."""
@@ -488,19 +488,17 @@ class CareerVietScraper:
 # ==================================================
 if __name__ == '__main__':
     
-    # --- Cau hinh URL ---
-    url_1 = "https://careerviet.vn/viec-lam/cntt-phan-mem-c1-sortdv-vi.html"
-    
-    
-    
+
+    url_2 = "https://careerviet.vn/viec-lam/cntt-phan-cung-mang-c63-sortdv-vi.html"
     
     print(f"\n--- BAT DAU PHIEN CAO MOI (MAX {CareerVietScraper.JOB_LIMIT} JOBS/CATEGORY) ---")
     print(f"--- SE TU DONG QUET TU TRANG 1 ---")
+
     try:
-        print("\n--- Dang xu ly danh muc: IT_Software ---")
-        scraper_sw = CareerVietScraper("IT_Software", url_1) 
-        scraper_sw.run()
+        print("\n--- Dang xu ly danh muc: IT_Hardware_Network ---")
+        scraper_hw = CareerVietScraper("IT_Hardware_Network", url_2)
+        scraper_hw.run()
     except Exception as e:
-        print(f"!!! LOI NGHIEM TRONG (CareerViet - IT_Software): {e}")
-        logging.exception("Loi nghiem trong IT_Software") 
+        print(f"!!! LOI NGHIEM TRONG (CareerViet - IT_Hardware_Network): {e}")
+        logging.exception("Loi nghiem trong IT_Hardware_Network")  
     print("\n--- [HOAN TAT] CareerViet Scraper ---")
