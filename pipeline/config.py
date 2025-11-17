@@ -21,7 +21,8 @@ DB_NAME = os.getenv("DB_NAME")
 
 # --- Xây dựng DATABASE_URL ---
 DATABASE_URL = None
-
+LOCAL_MYSQL_URL = os.getenv("LOCAL_MYSQL_URL")
+REMOTE_SERVER_URL = os.getenv("REMOTE_SERVER_URL")
 if DB_TYPE == "postgresql":
     # Thêm +psycopg2 để chỉ rõ driver
     DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"

@@ -9,22 +9,31 @@ IF ERRORLEVEL 1 (
     echo !!! LOI: Khong tim thay "venv\Scripts\activate.bat"
     GOTO :EOF
 )
-
 echo.
-echo [BUOC 1/3] === DANG CHAY TOPCV SCRAPER ===
-python scrapers\TopCV.py
+echo === DANG CHAY CAREERLINK SCRAPER (Tat ca danh muc) ===
+python scrapers\CareerlinkM.py 
 
-echo.
-echo [BUOC 2/3] === DANG CHAY CAREERLINK SCRAPER (Tat ca danh muc) ===
-python scrapers\Careerlink.py
 
-:: (Ban co the them cac scraper khac o day)
-echo [BUOC 3/X] === DANG CHAY CAREERVIET SCRAPER ===
+echo === DANG CHAY CAREERVIET SCRAPER ===
 python scrapers\CareerViet.py
 
-echo.
-echo [BUOC 3/3] === DANG NAP DU LIEU VAO DATABASE (LOADER) ===
-python pipeline\loader.py
 
 echo.
-echo --- [HOAN TAT TOAN BO PIPELINE] ---
+echo === DANG CHAY TOPCV SCRAPER ===
+python scrapers\TopCV.py
+
+echo  === DANG CHAY CAREERVIET SCRAPER ===
+python scrapers\CareerVietC.py
+ECHO Tam nghi 5 phut (300 giay) truoc khi chay scraper tiep theo...
+
+
+echo.
+echo === DANG CHAY CAREERLINK SCRAPER (Tat ca danh muc) ===
+python scrapers\Careerlink.py 
+
+echo.
+echo  === DANG NAP DU LIEU VAO DATABASE (LOADER) ===
+python push_load.py
+
+echo.
+echo --- [HOAN TAT] ---
