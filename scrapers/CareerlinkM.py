@@ -30,7 +30,7 @@ class CareerLinkScraper:
         self.JOBS_PER_LONG_BREAK = 50
         self.LONG_BREAK_DURATION_MIN = 60
         self.LONG_BREAK_DURATION_MAX = 120
-        self.JOB_LIMIT = 100
+        self.JOB_LIMIT = 20
         
         # Thiet lap duong dan
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +48,7 @@ class CareerLinkScraper:
         # SUA 1: Header CSV (Cap nhat du 22 cot)
         # ==========================================================
         self.CSV_HEADER = [
-            "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
+            "CongViec","ViTri", "YeuCauKinhNghiem", "MucLuong",
             "ThoiGianLamViec", "GioiTinh", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
             "QuyMoCongTy", "SoLuongTuyen", "HocVan",
             "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon","NgayCaoDuLieu",
@@ -310,7 +310,7 @@ class CareerLinkScraper:
                     level, education, gender, work_form = "", "", "", ""
                     
                     # Them cac cot thieu de khop DB
-                    specialization = "" 
+                    
                     work_time = ""
                     recruit_quantity = "" 
                     linh_vuc = "" # Khoi tao bien linh_vuc
@@ -405,7 +405,7 @@ class CareerLinkScraper:
                         # SUA 3: Ghi du 22 cot theo dung thu tu
                         # ==========================================================
                         writer.writerow([
-                            title, specialization, work_location, experience, salary,
+                            title, work_location, experience, salary,
                             work_time, gender, level, work_form,
                             company_name, company_link, company_size, recruit_quantity, education,
                             skills,

@@ -7,7 +7,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import time, random, csv, os, re, sys, logging, math # [THEM MOI] import math
+import time, random, csv, os, re, sys, logging, math 
 from datetime import datetime
 
 
@@ -17,7 +17,7 @@ sys.path.append(project_root_for_import)
 
 
 class CareerVietScraper:
-    JOB_LIMIT = 50 # (Ban dang de 10 de test)
+    JOB_LIMIT = 10
     
     def __init__(self, category_name, base_url):
         """Khoi tao scraper cho mot danh muc CareerViet."""
@@ -45,7 +45,7 @@ class CareerVietScraper:
         self.seen_links = set() 
         
         self.CSV_HEADER = [
-            "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
+            "CongViec", "ViTri", "YeuCauKinhNghiem", "MucLuong",
             "ThoiGianLamViec", "GioiTinh", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
             "QuyMoCongTy", "SoLuongTuyen", "HocVan",
             "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon","NgayCaoDuLieu",
@@ -393,7 +393,7 @@ class CareerVietScraper:
                         WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.detail-row"))) 
                         
                         # Khoi tao du 22 bien
-                        title, specialization, work_location, experience, salary = "", "", "", "", ""
+                        title, work_location, experience, salary = "", "", "", ""
                         work_time, gender, level, work_form = "", "", "", ""
                         
                         company_name, company_link, company_size = company_name_card, company_link_card, ""
@@ -427,7 +427,7 @@ class CareerVietScraper:
                             benefits = ""
 
                         
-                        specialization = "" 
+                        
                         
                         
                         name_from_tab2, link_from_tab2, size_from_tab2 = self._get_company_info()
@@ -439,7 +439,7 @@ class CareerVietScraper:
                         
                         # Ghi du 22 cot vao CSV
                         writer.writerow([
-                            title, specialization, work_location, experience, salary,
+                            title, work_location, experience, salary,
                             work_time, gender, level, work_form,
                             company_name, company_link, company_size, recruit_quantity, education,
                             requirement, job_description, benefits,

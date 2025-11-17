@@ -1,4 +1,4 @@
-# scrapers/topcv_scraper.py
+# scrapers/JobsGo_scraper.py
 
 import selenium
 from selenium import webdriver
@@ -17,17 +17,17 @@ import logging
 project_root_for_import = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root_for_import)
 
-class TopCVScraper:
+class JobsGoScraper:
     def __init__(self):
-        """Khoi tao scraper TopCV."""
-       
-        self.JOB_LIMIT = 100
-        
+        """Khoi tao scraper JobsGo."""
+        # Cau hinh pipeline
+        self.START_PAGE = 1
+        self.PAGES_TO_ADD_PER_RUN = 1 
         self.JOBS_PER_BREAK = 50
         self.BREAK_DURATION_MIN = 120
         self.BREAK_DURATION_MAX = 300
         self.BATCH_SIZE_RESTART_DRIVER = 20
-        self.SOURCE_WEB = "TopCV"
+        self.SOURCE_WEB = "JobsGo"
         
         # Thiet lap duong dan
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,11 +36,15 @@ class TopCVScraper:
         self.csv_output_dir = os.path.join(project_root, "dataset")
         os.makedirs(self.csv_output_dir, exist_ok=True)
 
-        self.log_file = os.path.join(scraper_dir, "TopCV.log")
-        self.id_history_file = os.path.join(scraper_dir, "TopCV_id_history.txt")
-    
+        self.log_file = os.path.join(scraper_dir, "JobsGo.log")
+        self.id_history_file = os.path.join(scraper_dir, "JobsGo_id_history.txt")
+        self.max_page_file = os.path.join(scraper_dir, "JobsGo_max_page.txt")
+
+        # ==========================================================
+        # SUA 1: Header CSV (Them GioiTinh, LinhVuc cho du 22 cot)
+        # ==========================================================
         self.CSV_HEADER = [
-            "CongViec", "ViTri", "YeuCauKinhNghiem", "MucLuong",
+            "CongViec", "ChuyenMon", "ViTri", "YeuCauKinhNghiem", "MucLuong",
             "ThoiGianLamViec", "GioiTinh", "CapBac", "HinhThucLamViec", "CongTy", "LinkCongTy",
             "QuyMoCongTy", "SoLuongTuyen", "HocVan",
             "YeuCauUngVien", "MoTaCongViec", "QuyenLoi", "HanNopHoSo", "LinkBaiTuyenDung", "Nguon","NgayCaoDuLieu",
@@ -92,50 +96,7 @@ class TopCVScraper:
             self.logger.error(f"Loi khi doc file lich su ID {file_path}: {e}")
             return set()
 
-    # ... (Sau phuong thuc _get_section_details) ...
-    def _get_max_page(self, driver):
-            """
-            [THEM MOI - DA CAP NHAT] Tim trang cuoi cung tu text phan trang.
-            """
-            try:
-                # Tai trang 1 (trang mac dinh) de tim max page
-                url = "https://www.topcv.vn/tim-viec-lam-cong-nghe-thong-tin-cr257?sort=newp&page=1&category_family=r257"
-                self.logger.info("Dang tai trang 1 de xac dinh so trang toi da (max_page)...")
-                driver.get(url)
-                
-                # Doi cho text phan trang xuat hien (dua theo snippet ban cung cap)
-                pagination_element = WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.ID, "job-listing-paginate-text"))
-                )
-                time.sleep(1) # Cho text render
-                
-                pagination_text = pagination_element.text.strip() # Vi du: "1 / 82 trang"
-                self.logger.debug(f"Tim thay pagination text: '{pagination_text}'")
-                
-                # Su dung regex de lay so trang lon nhat
-                match = re.search(r'/\s*(\d+)\s*trang', pagination_text)
-                
-                if match:
-                    max_page_found = int(match.group(1))
-                    self.logger.info(f"Tim thay trang toi đa (max page) la: {max_page_found}")
-                    return max_page_found
-                else:
-                    self.logger.warning(f"Khong the tim thay '.../ X trang' tu text: '{pagination_text}'. Dat max_page = 1.")
-                    return 1
-
-            except (TimeoutException, NoSuchElementException):
-                self.logger.warning("Khong tim thay element #job-listing-paginate-text. Co the chi co 1 trang. Dat max_page = 1.")
-                return 1 # Tra ve 1 neu khong tim thay pagination
-            except Exception as e:
-                self.logger.error(f"Loi khong xac dinh khi tim max page: {e}. Dat max_page = 1.")
-                return 1
     
-    def _extract_job_id_from_link(self, link):
-        """Trich xuat ID tu link job TopCV."""
-        if not link:
-            return None
-        match = re.search(r'/(\d+)\.html', link)
-        return match.group(1) if match else None
         
     def _get_element_text(self, driver, by, value):
         """Lay text cua element an toan."""
@@ -156,110 +117,79 @@ class TopCVScraper:
     def run(self):
         """Phuong thuc chinh de chay toan bo qua trinh cao du lieu."""
         start_time = time.time()
-        self.logger.info(f"Bat dau phien cao du lieu TopCV moi (Gioi han {self.JOB_LIMIT} job moi)...")
+        self.logger.info("Bat dau phien cao du lieu JobsGo moi...")
 
         now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_file = os.path.join(self.csv_output_dir, f"TopCV_jobs_{now_str}.csv")
+        output_file = os.path.join(self.csv_output_dir, f"JobsGo_jobs_{now_str}.csv")
         self.logger.info(f"Du lieu se duoc luu vao file: {os.path.basename(output_file)}")
 
         with open(output_file, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(self.CSV_HEADER)
             
+        try:
+            if not os.path.exists(self.max_page_file):
+                max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
+                with open(self.max_page_file, 'w') as f: f.write(str(max_page_to_crawl))
+                self.logger.info(f"File max_page.txt khong ton tai. Tao moi va dat trang toi da la {max_page_to_crawl}.")
+            else:
+                with open(self.max_page_file, 'r') as f:
+                    content = f.readline().strip()
+                    if content and content.isdigit():
+                        max_page_to_crawl = int(content)
+                    else:
+                        max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
+                        self.logger.warning(f"Noi dung file max_page.txt khong hop le. Dat lai trang toi da la {max_page_to_crawl}.")
+        except Exception as e:
+            max_page_to_crawl = self.PAGES_TO_ADD_PER_RUN
+            self.logger.error(f"Loi khi doc file max_page.txt: {e}. Dat lai trang toi da la {max_page_to_crawl}.")
+
+        self.logger.info(f"Lan nay se quet tu trang {self.START_PAGE} -> {max_page_to_crawl}.")
+        
         driver = self._create_driver()
         existing_ids = self._get_existing_ids(self.id_history_file)
         self.logger.info(f"Da tim thay {len(existing_ids)} ID jobs trong lich su.")
 
-        # ==========================================================
-        # [THEM MOI] Logic tim max page
-        # ==========================================================
-        try:
-            # Ham nay se tai trang 1
-            max_page_limit = self._get_max_page(driver) 
-        except Exception as e:
-            self.logger.error(f"Gap loi nghiem trong khi lay max_page: {e}. Dung quet trang.")
-            driver.quit()
-            return None # Thoat som neu khong lay duoc max_page
-
         new_jobs_to_crawl = []
         
-        # ==========================================================
-        # [THAY DOI] Vong 1: Thu thap Link (Tu dong quet)
-        # ==========================================================
-        page = 1
-        jobs_collected_count = 0
-        stop_collecting = False
-        consecutive_pages_with_no_new_jobs = 0
-        MAX_CONSECUTIVE_EMPTY_PAGES = 5 # Van giu logic nay de dung som
-
-        # [THAY DOI] Sua 'while True' thanh 'while page <= max_page_limit'
-        while page <= max_page_limit: 
-            if stop_collecting:
-                self.logger.info(f"Da du {self.JOB_LIMIT} job moi. Dung quet trang.")
-                break # Dung vong lap 'while'
+        
+        
+        
+        for page in range(self.START_PAGE, max_page_to_crawl + 1):
+            url = f"https://jobsgo.vn/viec-lam-cong-nghe-thong-tin.html?category=cong-nghe-thong-tin&sort=created&page={page}"
             
-            if consecutive_pages_with_no_new_jobs >= MAX_CONSECUTIVE_EMPTY_PAGES:
-                self.logger.info(f"Dung quet vi {MAX_CONSECUTIVE_EMPTY_PAGES} trang lien tiep khong co job MOI nao (mac du max_page la {max_page_limit}).")
-                break # Dung vong lap 'while'
-
+            self.logger.info(f"Dang quet trang {page}: {url}")
+            try:
+                driver.get(url)
+                WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.card job-card rounded-3 h-100 p-3")))
+                time.sleep(random.uniform(2, 4))
+            except TimeoutException:
+                self.logger.warning(f"Trang {page} khong ton tai hoac load qua lau. Bo qua.")
+                continue
             
-            # [DIEU CHINH] Logic tai trang
-            if page == 1:
-                self.logger.info(f"Dang xu ly trang {page}/{max_page_limit} (da duoc tai de lay max_page)...")
-                # Trang 1 da duoc tai boi _get_max_page, khong can driver.get()
-            else:
-                url = f"https://www.topcv.vn/tim-viec-lam-cong-nghe-thong-tin-cr257?sort=newp&page={page}&category_family=r257"
-                self.logger.info(f"Dang quet trang {page}/{max_page_limit}...")
-                try:
-                    driver.get(url)
-                    WebDriverWait(driver, 20).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.job-item-search-result")))
-                    time.sleep(random.uniform(2, 4))
-                except TimeoutException:
-                    self.logger.warning(f"Trang {page} khong ton tai hoac load qua lau. Bo qua trang nay.")
-                    page += 1
-                    continue # Tiep tuc vong while
-
-            
-            job_cards = driver.find_elements(By.CSS_SELECTOR, "div.job-item-search-result")
+            job_cards = driver.find_elements(By.CSS_SELECTOR, "div.card job-card rounded-3 h-100 p-3")
             if not job_cards:
-                self.logger.warning(f"Trang {page} khong co job nao. Chuyen trang tiep theo.")
-                page += 1
-                consecutive_pages_with_no_new_jobs += 1 # [DIEU CHINH] Van dem trang rong
-                continue # Tiep tuc vong while
+                self.logger.warning(f"Trang {page} khong co job nao. Tiep tuc quet trang tiep theo.")
+                continue
 
             new_jobs_found_on_page = 0
             for card in job_cards:
-                if stop_collecting:
-                    break # Dung vong 'card'
-
                 try:
-                    link_element = card.find_element(By.CSS_SELECTOR, "h3.title a")
+                    link_element = card.find_element(By.CSS_SELECTOR, "a")
                     link = link_element.get_attribute("href")
-                    job_id = self._extract_job_id_from_link(link)
                     
-                    if job_id and (job_id not in existing_ids):
+                    
+                    
+                    if job_id :
                         new_jobs_to_crawl.append((link, job_id)) 
-                        existing_ids.add(job_id)
                         new_jobs_found_on_page += 1
-                        jobs_collected_count += 1 # Tang bo dem tong
-                        
-                        if jobs_collected_count >= self.JOB_LIMIT:
-                            stop_collecting = True
-                            break # Dung vong 'card'
                 except Exception:
                     continue
             
             if new_jobs_found_on_page > 0:
-                self.logger.info(f"Trang {page} -> Tim thay {new_jobs_found_on_page} job MOI. (Tong so job moi: {jobs_collected_count}/{self.JOB_LIMIT})")
-                consecutive_pages_with_no_new_jobs = 0 # Reset
+                self.logger.info(f"Trang {page} -> Tim thay {new_jobs_found_on_page} job MOI.")
             else:
                 self.logger.info(f"Trang {page} khong co job nao moi.")
-                consecutive_pages_with_no_new_jobs += 1 # Tang
-            
-            page += 1 # Chuyen sang trang tiep theo
-            time.sleep(random.uniform(2, 5)) # Them mot khoang nghi nho giua cac trang
-
-        self.logger.info(f"Hoan thanh quet trang (da quet den trang {page-1} / gioi han {max_page_limit}).")
 
         self.logger.info(f"Da thu thap xong. Co {len(new_jobs_to_crawl)} job moi can cao chi tiet.")
 
@@ -267,9 +197,6 @@ class TopCVScraper:
         if not new_jobs_to_crawl:
             self.logger.info("Khong co job moi nao de cao. Ket thuc.")
         else:
-            # ==========================================================
-            # Vong 2: Cao chi tiet
-            # ==========================================================
             for idx, (link, job_id) in enumerate(new_jobs_to_crawl, 1):
                 try:
                     driver.get(link)
@@ -278,9 +205,10 @@ class TopCVScraper:
                     
                     
                     title, salary, experience, level, recruit_quantity, work_form, education = "", "", "", "", "", "", ""
-                    deadline_raw, work_location, work_time = "", "", ""
+                    deadline_raw, specialization, work_location, work_time = "", "", "", ""
                     company_name, company_link, company_size = "", "", ""
                     job_description, requirement, benefits = "", "", ""
+                    # Them 2 cot moi de khop DB (JobsGo khong co 2 cot nay)
                     gioi_tinh = "" 
                     linh_vuc = ""
 
@@ -325,7 +253,11 @@ class TopCVScraper:
                     except Exception as e:
                         self.logger.warning(f"Loi nho khi cao 'deadline_raw' (ID: {job_id}): {e}")
 
-                    
+                    try:
+                        specialization = self._get_element_text(driver, By.CSS_SELECTOR, "a.item.search-from-tag.link")
+                    except Exception as e:
+                        self.logger.warning(f"Loi nho khi cao 'specialization' (ID: {job_id}): {e}")
+
                     try:
                         work_location = self._get_element_text(driver, By.XPATH, "//div[contains(text(), 'Địa điểm') and contains(@class, 'job-detail__info--section-content-title')]/following-sibling::div")
                     except Exception as e:
@@ -352,10 +284,7 @@ class TopCVScraper:
                         company_size = self._get_element_text(driver, By.XPATH, "//div[contains(@class, 'company-scale')]//div[@class='company-value']")
                     except Exception as e:
                         self.logger.warning(f"Loi nho khi cao 'company_size' (ID: {job_id}): {e}")
-                    try:
-                        linh_vuc = self._get_element_text(driver, By.XPATH, "//div[@class='company-title' and contains(normalize-space(), 'Lĩnh vực:')]/following-sibling::div[@class='company-value']")
-                    except Exception as e:
-                        self.logger.warning(f"Loi nho khi cao 'company_field' (ID: {job_id}): {e}")
+                    
                     try:
                         job_description = self._get_section_details(driver, "Mô tả công việc")
                     except Exception as e:
@@ -378,7 +307,7 @@ class TopCVScraper:
                     # Ghi du 22 cot vao CSV theo dung thu tu
                     # ==========================================================
                     job_data = [
-                        title, work_location, experience, salary,
+                        title, specialization, work_location, experience, salary,
                         work_time, gioi_tinh, level, work_form,
                         company_name, company_link, company_size, recruit_quantity, education,
                         requirement, job_description, benefits,
@@ -398,11 +327,6 @@ class TopCVScraper:
                     success_count += 1
                     self.logger.info(f"[{success_count}/{len(new_jobs_to_crawl)}] Da cao va luu job ID {job_id}: {title}")
                     
-                    # [THEM MOI] Kiem tra gioi han 300 job
-                    if success_count >= self.JOB_LIMIT:
-                        self.logger.info(f"Da dat gioi han {self.JOB_LIMIT} job thanh cong. Dung cao chi tiet.")
-                        break # Dung vong 'for idx, (link, job_id)'
-
                     # Tam nghi
                     if success_count % self.JOBS_PER_BREAK == 0 and idx < len(new_jobs_to_crawl):
                         sleep_time = random.uniform(self.BREAK_DURATION_MIN, self.BREAK_DURATION_MAX)
@@ -422,8 +346,14 @@ class TopCVScraper:
             
         driver.quit()
 
-        # [XOA] Logic cap nhat max_page da bi xoa
-        
+        # 1. Cap nhat max_page
+        new_max_page = max_page_to_crawl + self.PAGES_TO_ADD_PER_RUN
+        try:
+            with open(self.max_page_file, "w") as f: f.write(str(new_max_page))
+            self.logger.info(f"Da cap nhat max_page.txt cho lan chay tiep theo: {new_max_page}")
+        except Exception as e:
+            self.logger.error(f"Khong the cap nhat file max_page.txt: {e}")
+
         # 2. Tinh thoi gian chay
         end_time = time.time()
         total_minutes = round((end_time - start_time) / 60, 2)
@@ -444,10 +374,10 @@ class TopCVScraper:
 
 if __name__ == '__main__':
     # Thiet lap sys.path da co o dau file
-    print("--- [BAT DAU] Dang chay TopCV Scraper (doc lap) ---")
+    print("--- [BAT DAU] Dang chay JobsGo Scraper (doc lap) ---")
     try:
-        scraper = TopCVScraper()
+        scraper = JobsGoScraper()
         scraper.run()
-        print("--- [HOAN TAT] TopCV Scraper ---")
+        print("--- [HOAN TAT] JobsGo Scraper ---")
     except Exception as e:
-        print(f"!!! LOI NGHIEM TRONG (TopCV): {e}")
+        print(f"!!! LOI NGHIEM TRONG (JobsGo): {e}")
